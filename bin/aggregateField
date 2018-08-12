@@ -1,0 +1,68 @@
+#!/bin/bash
+
+printUsage()
+{
+    cat <<HELPTEXT
+Aggregate identical values in field N / field with HEADER-NAME (implies
+--has-header), and print only a summary of how many instances of each value were
+seen (from most to fewest).
+HELPTEXT
+    printf 'Usage: cat FILE | %q %s\n' "$(basename "$1")" '[-F|--field-separator FS] N|HEADER-NAME [-?|-h|--help]'
+}
+
+typeset -a fsArgs
+hasHeader=
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+	--field-separator|-F)	shift; fsArgs=(-F "$1"); shift;;
+	--has-header)	shift; hasHeader=t;;
+	--)		shift; break;;
+	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		break;;
+    esac
+done
+[ $# -eq 0 ] && { printUsage "$0"; exit 2; }
+
+
+awk "${fsArgs[@]}" -v "hasHeader=$hasHeader" -v "aggregateFieldSpecifier=${1:?}" '
+NR == 1 {
+    if (aggregateFieldSpecifier ~ /^[0-9]+/) {
+	aggregateFieldNr = aggregateFieldSpecifier
+
+	if ($aggregateFieldNr == "") {
+	    printf "ERROR: No field number %d in\n%s\n", aggregateFieldNr, $0 > "/dev/stderr"
+	    exit 3
+	}
+
+	if (hasHeader == "") {
+	    # No header with N; need to aggregate first line, too.
+	    counts[$aggregateFieldNr] += 1
+	}
+    } else {
+	for (aggregateFieldNr = 1; aggregateFieldNr <= NF; aggregateFieldNr++) {
+	    if ($aggregateFieldNr == aggregateFieldSpecifier) next
+	}
+
+	printf "ERROR: Could not locate field named %s in\n%s\n", aggregateFieldSpecifier, $0 > "/dev/stderr"
+	exit 3
+    }
+}
+
+NR > 1 {
+    counts[$aggregateFieldNr] += 1
+}
+
+END {
+    if (length(counts) == 0) exit
+
+    PROCINFO["sorted_in"] = "@val_num_desc"
+    sep = ""
+    for (c in counts) {
+	printf "%s%d %s", sep, counts[c], c
+	sep = ", "
+    }
+    print ""
+}
+'
