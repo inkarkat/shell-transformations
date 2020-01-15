@@ -1,0 +1,51 @@
+#!/bin/bash
+
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[-f|--foo bar] [FILE ...] [-?|-h|--help]'
+}
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 'Try %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
+Analyzes the per-line numbers from standard input and prints statistical values:
+min-max, median and mean values, first and third quartile, standard deviation, and sum.
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    cat <<HELPTEXT
+    --raw|-r	    Print just the bare, space-separated numbers.
+    --ascii	    Embellish the numbers with ASCII descriptions, not the
+		    Unicode characters that are the default.
+
+Example:
+HELPTEXT
+    printf '%q %s\n' "$(basename "$1")" '--foo bar /tmp/foobar'
+}
+
+format='_:%g ¼:%g õ:%g ø:%g ¾:%g ¯:%g σ:%g Σ:%g\n'
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--raw|-r)	shift; format='%g %g %g %g %g %g %g %g\n';;
+	--ascii)	shift; format='min:%g q1:%g med:%g avg:%g q3:%g max:%g std:%g sum:%g\n';;
+	--)		shift; break;;
+	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printShortUsage "$0"; } >&2; exit 2;;
+	*)		break;;
+    esac
+done
+
+IFS=$'\t' read -r min q1 median mean q3 max sstdev sum < <(datamash min 1 q1 1 median 1 mean 1 q3 1 max 1 sstdev 1 sum 1)
+
+printf "$format" "$min" "$q1" "$median" "$mean" "$q3" "$max" "$sstdev" "$sum"
