@@ -33,13 +33,14 @@ HELPTEXT
     printf '%q %s\n' "$(basename "$1")" '--foo bar /tmp/foobar'
 }
 
-format='_:%g ¼:%g õ:%g ø:%g ¾:%g ¯:%g σ:%g Σ:%g\n'
+F="%${STATISTICS_PRECISION:+.}${STATISTICS_PRECISION:-g}${STATISTICS_PRECISION:+f}"
+format="_:${F} ¼:${F} õ:${F} ø:${F} ¾:${F} ¯:${F} σ:${F} Σ:${F}\\n"
 while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
-	--raw|-r)	shift; format='%g %g %g %g %g %g %g %g\n';;
-	--ascii)	shift; format='min:%g q1:%g med:%g avg:%g q3:%g max:%g std:%g sum:%g\n';;
+	--raw|-r)	shift; format="${F} ${F} ${F} ${F} ${F} ${F} ${F} ${F}\\n";;
+	--ascii)	shift; format="min:${F} q1:${F} med:${F} avg:${F} q3:${F} max:${F} std:${F} sum:${F}\\n";;
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printShortUsage "$0"; } >&2; exit 2;;
 	*)		break;;
