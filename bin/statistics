@@ -4,7 +4,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[-f|--foo bar] [FILE ...] [-?|-h|--help]'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[-?|-h|--help]'
 }
 printUsage()
 {
@@ -19,7 +19,8 @@ printLongUsage()
     # It is printed to stdout to allow paging with 'more'.
     cat <<HELPDESCRIPTION
 Analyzes the per-line numbers from standard input and prints statistical values:
-min-max, median and mean values, first and third quartile, standard deviation, and sum.
+min-max, median and mean values, first and third quartile, standard deviation,
+[unique] count and sum.
 HELPDESCRIPTION
     echo
     printShortUsage "$1"
@@ -34,19 +35,19 @@ HELPTEXT
 }
 
 F="%${STATISTICS_PRECISION:+.}${STATISTICS_PRECISION:-g}${STATISTICS_PRECISION:+f}"
-format="_:${F} ¼:${F} õ:${F} ø:${F} ¾:${F} ¯:${F} σ:${F} Σ:${F}\\n"
+format="_:${F} ¼:${F} õ:${F} ø:${F} ¾:${F} ¯:${F} σ:${F} N:%d U:%d Σ:${F}\\n"
 while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
-	--raw|-r)	shift; format="${F} ${F} ${F} ${F} ${F} ${F} ${F} ${F}\\n";;
-	--ascii)	shift; format="min:${F} q1:${F} med:${F} avg:${F} q3:${F} max:${F} std:${F} sum:${F}\\n";;
+	--raw|-r)	shift; format="${F} ${F} ${F} ${F} ${F} ${F} ${F} %d %d ${F}\\n";;
+	--ascii)	shift; format="min:${F} q1:${F} med:${F} avg:${F} q3:${F} max:${F} std:${F} N:%d U:%d sum:${F}\\n";;
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printShortUsage "$0"; } >&2; exit 2;;
 	*)		break;;
     esac
 done
 
-IFS=$'\t' read -r min q1 median mean q3 max sstdev sum < <(datamash min 1 q1 1 median 1 mean 1 q3 1 max 1 sstdev 1 sum 1)
+IFS=$'\t' read -r min q1 median mean q3 max sstdev num unique sum < <(datamash min 1 q1 1 median 1 mean 1 q3 1 max 1 sstdev 1 count 1 countunique 1 sum 1)
 
-printf "$format" "$min" "$q1" "$median" "$mean" "$q3" "$max" "$sstdev" "$sum"
+printf "$format" "$min" "$q1" "$median" "$mean" "$q3" "$max" "$sstdev" "$num" "$unique" "$sum"
