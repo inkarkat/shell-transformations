@@ -4,8 +4,8 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" '[-L|--legend-only] [-?|-h|--help]'
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[-l|--legend]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[-L|--legend-only] [-u|--unit UNIT] [-?|-h|--help]'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[-l|--legend] [-u|--unit UNIT]'
 }
 printUsage()
 {
@@ -32,46 +32,58 @@ HELPDESCRIPTION
     --legend|-l	    Append a legend to the output.
     --legend-only|-L
 		    Just print a legend (without analyzing input).
+    --unit|-u UNIT  Append UNIT behind every value (except the counts), or in
+		    the legend if printed.
 
 Example:
 HELPTEXT
-    printf '%q %s\n' "$(basename "$1")" '--foo bar /tmp/foobar'
+    printf 'cat datadump | %q %s\n' "$(basename "$1")" '--unit m/s'
 }
 
 F="%${STATISTICS_PRECISION:+.}${STATISTICS_PRECISION:-g}${STATISTICS_PRECISION:+f}"
-format="⭳:${F} ¼:${F} õ:${F} ø:${F} ¾:${F} ⭱:${F} σ:${F} Σ:${F} N:%d ≠:%d\\n"
-legend='⭳:minimum value\n¼:first quartile value\nõ:median\nø:mean of the values\n¾:third quartile value\n⭱:maximum value\nσ:standard deviation\nΣ:sum of all values\nN:number of values\n≠:number of unique/distinct values\n'
+format="⭳:${F}%s ¼:${F}%s õ:${F}%s ø:${F}%s ¾:${F}%s ⭱:${F}%s σ:${F}%s Σ:${F}%s N:%d ≠:%d\\n"
+legend='⭳:minimum value%s\n¼:first quartile value%s\nõ:median%s\nø:mean of the values%s\n¾:third quartile value%s\n⭱:maximum value%s\nσ:standard deviation%s\nΣ:sum of all values%s\nN:number of values%s\n≠:number of unique/distinct values%s\n'
 isAddLegend=
 isLegendOnly=
+unit=
 while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
 	--raw|-r)	shift
-			format="${F} ${F} ${F} ${F} ${F} ${F} ${F} %d %d ${F}\\n"
+			format="${F}%s ${F}%s ${F}%s ${F}%s ${F}%s ${F}%s ${F}%s ${F}%s %d %d\\n"
 			legend="${legend//?:/}"
 			;;
 	--ascii)	shift
-			format="min:${F} q1:${F} med:${F} avg:${F} q3:${F} max:${F} std:${F} sum:${F} N:%d U:%d\\n"
-			legend='min: minimum value\nq1 : first quartile value\nmed: median\navg: mean of the values\nq3 : third quartile value\nmax: maximum value\nstd: standard deviation\nsum: sum of all values\nN  : number of values\nU  : number of unique/distinct values\n'
+			format="min:${F}%s q1:${F}%s med:${F}%s avg:${F}%s q3:${F}%s max:${F}%s std:${F}%s sum:${F}%s N:%d U:%d\\n"
+			legend='min: minimum value%s\nq1 : first quartile value%s\nmed: median%s\navg: mean of the values%s\nq3 : third quartile value%s\nmax: maximum value%s\nstd: standard deviation%s\nsum: sum of all values%s\nN  : number of values%s\nU  : number of unique/distinct values%s\n'
 			;;
 	--legend|-l)	shift; isAddLegend=t;;
 	--legend-only|-L)
 			shift; isLegendOnly=t;;
+	--unit|-u)	shift; unit="$1"; shift;;
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printShortUsage "$0"; } >&2; exit 2;;
 	*)		break;;
     esac
 done
 
+legendUnit=
 if [ "$isLegendOnly" ]; then
-    printf "$legend"
+    [ "$unit" ] && legendUnit=" (${unit})"
+    printf "$legend" "$legendUnit" "$legendUnit" "$legendUnit" "$legendUnit" "$legendUnit" "$legendUnit" "$legendUnit" "$legendUnit"
     exit
 fi
 
 IFS=$'\t' read -r min q1 median mean q3 max sstdev sum num unique < <(datamash min 1 q1 1 median 1 mean 1 q3 1 max 1 sstdev 1 sum 1 count 1 countunique 1)
 
-printf "$format" "$min" "$q1" "$median" "$mean" "$q3" "$max" "$sstdev" "$sum" "$num" "$unique"
 if [ "$isAddLegend" ]; then
-    printf "$legend"
+    legendUnit=" (${unit})"
+    unit=
+fi
+
+printf "$format" "$min" "$unit" "$q1" "$unit" "$median" "$unit" "$mean" "$unit" "$q3" "$unit" "$max" "$unit" "$sstdev" "$unit" "$sum" "$unit" "$num" "$unique"
+
+if [ "$isAddLegend" ]; then
+    printf "$legend" "$legendUnit" "$legendUnit" "$legendUnit" "$legendUnit" "$legendUnit" "$legendUnit" "$legendUnit" "$legendUnit"
 fi
