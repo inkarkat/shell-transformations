@@ -7,19 +7,21 @@ Aggregate identical values in field N / field with HEADER-NAME (implies
 --has-header), and print only a summary of how many instances of each value were
 seen (from most to fewest).
 HELPTEXT
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-F|--field-separator FS] N|HEADER-NAME'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-F|--field-separator FS] [-o|--output-separator OS] N|HEADER-NAME'
     printf 'Usage: %q %s\n' "$(basename "$1")" '-i|--input FILESPEC [...] N|HEADER-NAME [-?|-h|--help]'
 }
 
 typeset -a fsArgs
 typeset -a awkArgs=()
 hasHeader=
+outputSeparator=', '
 while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
 	--input|-i)		shift; awkArgs+=("$1"); shift;;
 	--field-separator|-F)	shift; fsArgs=(-F "$1"); shift;;
+	--output-separator|-o)	shift; outputSeparator="$1"; shift;;
 	--has-header)	shift; hasHeader=t;;
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
@@ -29,7 +31,10 @@ done
 [ $# -eq 0 ] && { printUsage "$0" >&2; exit 2; }
 
 
-awk "${fsArgs[@]}" -v "hasHeader=$hasHeader" -v "aggregateFieldSpecifier=${1:?}" '
+awk \
+    "${fsArgs[@]}" \
+    -v "hasHeader=$hasHeader" -v "aggregateFieldSpecifier=${1:?}" -v "outputSeparator=${outputSeparator//\\/\\\\}" \
+'
 NR == 1 {
     if (aggregateFieldSpecifier ~ /^[0-9]+/) {
 	aggregateFieldNr = aggregateFieldSpecifier
@@ -64,7 +69,7 @@ END {
     sep = ""
     for (c in counts) {
 	printf "%s%d %s", sep, counts[c], c
-	sep = ", "
+	sep = outputSeparator
     }
     print ""
 }
