@@ -7,7 +7,7 @@ Aggregate identical values in field N / field with HEADER-NAME (implies
 --has-header), and print only a summary of how many instances of each value were
 seen (from most to fewest).
 HELPTEXT
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-F|--field-separator FS] [-o|--output-separator OS] [-e|--empty-value EV] [-n|--null-value NV] N|HEADER-NAME'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-F|--field-separator FS] [-o|--output-separator OS] [-e|--empty-value EV|-E|--ignore-empty] [-n|--null-value NV|-N|--ignore-null] N|HEADER-NAME'
     printf 'Usage: %q %s\n' "$(basename "$1")" '-i|--input FILESPEC [...] N|HEADER-NAME [-?|-h|--help]'
 }
 
@@ -16,7 +16,9 @@ typeset -a awkArgs=()
 hasHeader=
 outputSeparator=$'\n'
 emptyValue=
+isIgnoreEmpty=
 nullValue=
+isIgnoreNull=
 while [ $# -ne 0 ]
 do
     case "$1" in
@@ -26,7 +28,9 @@ do
 	--field-separator|-F)	shift; fsArgs=(-F "$1"); shift;;
 	--output-separator|-o)	shift; outputSeparator="$1"; shift;;
 	--empty-value|-e)	shift; emptyValue="$1"; shift;;
+	--ignore-empty|-E)	shift; isIgnoreEmpty=t;;
 	--null-value|-n)	shift; nullValue="$1"; shift;;
+	--ignore-null|-N)	shift; isIgnoreNull=t;;
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
 	*)		break;;
@@ -41,14 +45,20 @@ awk \
     -v "aggregateFieldSpecifier=${1:?}" \
     -v "outputSeparator=${outputSeparator//\\/\\\\}" \
     -v "emptyValue=${emptyValue//\\/\\\\}" \
+    -v "isIgnoreEmpty=$isIgnoreEmpty" \
     -v "nullValue=${nullValue//\\/\\\\}" \
+    -v "isIgnoreNull=$isIgnoreNull" \
 '
 function count()
 {
     if (aggregateFieldNr > NF && nullValue != "") {
 	counts[nullValue] += 1
+    } else if (aggregateFieldNr > NF && isIgnoreNull) {
+	# Ignore
     } else if ($aggregateFieldNr == "" && emptyValue != "") {
 	counts[emptyValue] += 1
+    } else if ($aggregateFieldNr == "" && isIgnoreEmpty) {
+	# Ignore
     } else {
 	counts[$aggregateFieldNr] += 1
     }
