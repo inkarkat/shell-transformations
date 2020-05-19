@@ -14,7 +14,7 @@ HELPTEXT
 typeset -a fsArgs
 typeset -a awkArgs=()
 hasHeader=
-outputSeparator=', '
+outputSeparator=$'\n'
 while [ $# -ne 0 ]
 do
     case "$1" in
