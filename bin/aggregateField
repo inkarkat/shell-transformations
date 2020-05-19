@@ -7,15 +7,18 @@ Aggregate identical values in field N / field with HEADER-NAME (implies
 --has-header), and print only a summary of how many instances of each value were
 seen (from most to fewest).
 HELPTEXT
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-F|--field-separator FS] N|HEADER-NAME [-?|-h|--help]'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-F|--field-separator FS] N|HEADER-NAME'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '-i|--input FILESPEC [...] N|HEADER-NAME [-?|-h|--help]'
 }
 
 typeset -a fsArgs
+typeset -a awkArgs=()
 hasHeader=
 while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+	--input|-i)		shift; awkArgs+=("$1"); shift;;
 	--field-separator|-F)	shift; fsArgs=(-F "$1"); shift;;
 	--has-header)	shift; hasHeader=t;;
 	--)		shift; break;;
@@ -65,4 +68,4 @@ END {
     }
     print ""
 }
-'
+' "${awkArgs[@]}"
