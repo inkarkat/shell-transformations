@@ -1,0 +1,74 @@
+#!/bin/bash
+
+printUsage()
+{
+    cat <<HELPTEXT
+Add up numbers in field N / field with HEADER-NAME (implies --has-header), and
+print the sum.
+HELPTEXT
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-F|--field-separator FS] N|HEADER-NAME'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '-i|--input FILESPEC [...] N|HEADER-NAME [-?|-h|--help]'
+}
+
+typeset -a fsArgs
+typeset -a awkArgs=()
+hasHeader=
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+	--has-header)	shift; hasHeader=t;;
+	--input|-i)		shift; awkArgs+=("$1"); shift;;
+	--field-separator|-F)	shift; fsArgs=(-F "$1"); shift;;
+	--)		shift; break;;
+	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		break;;
+    esac
+done
+if [ $# -eq 0 ]; then
+    printUsage >&2 "$0"
+    exit 2
+fi
+
+
+awk \
+    "${fsArgs[@]}" \
+    -v "hasHeader=$hasHeader" \
+    -v "aggregateFieldSpecifier=${1:?}" \
+'
+function count()
+{
+    if (aggregateFieldNr > NF) return
+    sum += $aggregateFieldNr
+}
+NR == 1 {
+    if (aggregateFieldSpecifier ~ /^[0-9]+/) {
+	aggregateFieldNr = aggregateFieldSpecifier
+
+	if (aggregateFieldNr <= 0 || aggregateFieldNr > NF) {
+	    printf "ERROR: No field number %d in\n%s\n", aggregateFieldNr, $0 > "/dev/stderr"
+	    exit 3
+	}
+
+	if (hasHeader == "") {
+	    # No header with N; need to aggregate first line, too.
+	    count()
+	}
+    } else {
+	for (aggregateFieldNr = 1; aggregateFieldNr <= NF; aggregateFieldNr++) {
+	    if ($aggregateFieldNr == aggregateFieldSpecifier) next
+	}
+
+	printf "ERROR: Could not locate field named %s in\n%s\n", aggregateFieldSpecifier, $0 > "/dev/stderr"
+	exit 3
+    }
+}
+
+NR > 1 {
+    count()
+}
+
+END {
+    print sum
+}
+' "${awkArgs[@]}"
