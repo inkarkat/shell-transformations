@@ -1,0 +1,139 @@
+#!/bin/bash
+
+printUsage()
+{
+    cat <<HELPTEXT
+Omit field N / field with HEADER-NAME (implies --has-header) if all of its
+values are identical.
+HELPTEXT
+    echo
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-F|--field-separator FS] N|HEADER-NAME'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '-i|--input FILESPEC [...] N|HEADER-NAME [-?|-h|--help]'
+}
+
+typeset -a fsArgs
+typeset -a awkArgs=()
+hasHeader=
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+	--has-header)	shift; hasHeader=t;;
+	--input|-i)		shift; awkArgs+=("$1"); shift;;
+	--field-separator|-F)	shift; fsArgs=(-F "$1"); shift;;
+	--)		shift; break;;
+	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		break;;
+    esac
+done
+if [ $# -eq 0 ]; then
+    printUsage >&2 "$0"
+    exit 2
+fi
+
+
+awk \
+    "${fsArgs[@]}" \
+    -v "hasHeader=$hasHeader" \
+    -v "watchedFieldSpecifier=${1:?}" \
+'
+function recordOtherFields(lineNum)
+{
+    for (i = 1; i < watchedFieldNr; i++)
+	fieldsBefore[lineNum] = fieldsBefore[lineNum] (i == 1 ? "" : OFS) $i
+    for (i = watchedFieldNr + 1; i <= NF; i++)
+	fieldsAfter[lineNum] = fieldsAfter[lineNum] $i (i == NF ? "" : OFS)
+}
+function parseNextLine()
+{
+    getline
+    watchedValue = $watchedFieldNr
+    recordOtherFields(++readLineNum)
+    next
+}
+function processHeader()
+{
+    recordOtherFields(0)
+    watchedHeader = $watchedFieldNr
+    parseNextLine()	# The second line is the first non-header line.
+}
+function checkForEqualness()
+{
+    if (watchedFieldNr > NF || $watchedFieldNr != watchedValue) {
+	isUnequal = 1
+	printReadLines(isUnequal)
+	print
+    } else {
+	recordOtherFields(++readLineNum)
+    }
+}
+function addSeparator(value1, value2)
+{
+    return (value1 == "" || value2 == "" ? "" : OFS)
+}
+function printReadLines(isUnequal)
+{
+    for (i = (hasHeader ? 0 : 1); i <= readLineNum; i++) {
+	if (isUnequal) {
+	    print fieldsBefore[i] addSeparator(fieldsBefore[i], 1) (i == 0 ? watchedHeader : watchedValue) addSeparator(fieldsAfter[i], 1) fieldsAfter[i]
+	} else {
+	    print fieldsBefore[i] addSeparator(fieldsBefore[i], fieldsAfter[i]) fieldsAfter[i]
+	}
+    }
+    readLineNum = -1
+}
+
+
+NR == 1 {
+    # Use FS as output separator; it cannot be a regular expression here.
+    firstTwoFields = $1 FS $2
+    if (NF < 2 || substr($0, 1, length(firstTwoFields)) == firstTwoFields) {
+	OFS = FS
+    } else if (FS == " " && (substr($0, 1, length(firstTwoFields)) == $1 "\t" $2)) {
+	OFS = "\t"
+    } else {
+	print "ERROR: The field separator has to be a literal string; it cannot be a regular expression." > "/dev/stderr"
+	exit 2
+    }
+}
+NR == 1 {
+    if (watchedFieldSpecifier ~ /^[0-9]+/) {
+	watchedFieldNr = watchedFieldSpecifier
+
+	if (watchedFieldNr <= 0 || watchedFieldNr > NF) {
+	    printf "ERROR: No field number %d in\n%s\n", watchedFieldNr, $0 > "/dev/stderr"
+	    exit 3
+	}
+
+	if (hasHeader) {
+	    processHeader()
+	} else {
+	    # No header with N; need to consider first line, too.
+	    watchedValue = $watchedFieldNr
+	    recordOtherFields(++readLineNum)
+	}
+    } else {
+	for (watchedFieldNr = 1; watchedFieldNr <= NF; watchedFieldNr++) {
+	    if ($watchedFieldNr == watchedFieldSpecifier) {
+		hasHeader = 1
+		processHeader()
+	    }
+	}
+
+	printf "ERROR: Could not locate field named %s in\n%s\n", watchedFieldSpecifier, $0 > "/dev/stderr"
+	exit 3
+    }
+}
+
+NR > 1 {
+    if (isUnequal) {
+	print
+    } else {
+	checkForEqualness()
+    }
+}
+
+END {
+    printReadLines(0)
+}
+' "${awkArgs[@]}"
