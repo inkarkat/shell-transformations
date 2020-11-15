@@ -7,18 +7,20 @@ Omit field N / field with HEADER-NAME (implies --has-header) if all of its
 values are identical.
 HELPTEXT
     echo
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-F|--field-separator FS] N|HEADER-NAME'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [--keep-single] [-F|--field-separator FS] N|HEADER-NAME'
     printf 'Usage: %q %s\n' "$(basename "$1")" '-i|--input FILESPEC [...] N|HEADER-NAME [-?|-h|--help]'
 }
 
 typeset -a fsArgs
 typeset -a awkArgs=()
 hasHeader=
+isKeepSingle=
 while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
 	--has-header)	shift; hasHeader=t;;
+	--keep-single)	shift; isKeepSingle=t;;
 	--input|-i)		shift; awkArgs+=("$1"); shift;;
 	--field-separator|-F)	shift; fsArgs=(-F "$1"); shift;;
 	--)		shift; break;;
@@ -35,6 +37,7 @@ fi
 awk \
     "${fsArgs[@]}" \
     -v "hasHeader=$hasHeader" \
+    -v "isKeepSingle=$isKeepSingle" \
     -v "watchedFieldSpecifier=${1:?}" \
 '
 function recordOtherFields(lineNum)
@@ -134,6 +137,11 @@ NR > 1 {
 }
 
 END {
-    printReadLines(0)
+    if (readLineNum == 1 && isKeepSingle) {
+	# Although unique, keep the field if there is only a single record.
+	printReadLines(1)
+    } else {
+	printReadLines(0)
+    }
 }
 ' "${awkArgs[@]}"
