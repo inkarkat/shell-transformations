@@ -50,7 +50,7 @@ NR == 1 {
 	    exit 3
 	}
 
-	if (hasHeader == "") {
+	if (! hasHeader) {
 	    # No header with N; need to aggregate first line, too.
 	    count()
 	}
