@@ -15,7 +15,7 @@ and writes it out in this format:
         k1 v1 v2 v4
         k2 v3 v5
         k3 v6
-Example: Get rid of duplicates: 
+Example: Get rid of duplicates:
         md5sum * | accumulate | perl -lane 'unlink @F[2..$#F]'
 EOF
     ;
@@ -24,6 +24,7 @@ EOF
 
 use Getopt::Std;
 my %opt = (k => 1, v => 2);
+usage() if $ARGV[0] eq '--help';
 getopts('k:v:', \%opt) or usage();
 for (qw(k v)) {
     $opt{$_} -= 1 if $opt{$_} > 0;
