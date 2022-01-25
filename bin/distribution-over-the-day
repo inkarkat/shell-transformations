@@ -91,6 +91,13 @@ END {
 	for (h = firstHour; h <= lastHour; ++h) {
 	    printf("%-" slotNum "." slotNum "s", h)
 	}
+    } else {
+	remainingLen = lastSlot - firstSlot + 1
+	for (h = firstHour; h < lastHour - 1; h += 3) {
+	    printf("%-3.3s", h)
+	    remainingLen -= 3
+	}
+	printf("%-" remainingLen "s", (remainingLen < length(lastHour) ? "" : lastHour))
     }
     printf "\n"
 
