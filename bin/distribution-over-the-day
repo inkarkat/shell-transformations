@@ -110,7 +110,7 @@ distributionWithoutFooter()
 {
     # First line is the footer; following lines are the distribution data to be
     # graphed.
-    IFS=$'\n' read -r footer
+    local footer; IFS=$'\n' read -r footer
 
     printDistribution
 }
@@ -119,7 +119,7 @@ distributionWithFooter()
 {
     # First line is the footer; following lines are the distribution data to be
     # graphed.
-    IFS=$'\n' read -r footer
+    local footer; IFS=$'\n' read -r footer
 
     typeset -a surroundCommand=(surround -- "${borders[0]}" "${borders[1]}"); [ -z "${borders[*]:0:2}" ] && surroundCommand=()
     eval 'printDistribution' "${surroundCommand:+|}" '"${surroundCommand[@]}"'
