@@ -104,7 +104,7 @@ distributionWithFooter()
     # graphed.
     IFS=$'\n' read -r footer
 
-    typeset -a surroundCommand=(surround -- "${borders[0]}" "${borders[1]}"); [ -z "${borders[@]:0:1}" ] && surroundCommand=()
+    typeset -a surroundCommand=(surround -- "${borders[0]}" "${borders[1]}"); [ -z "${borders[*]:0:2}" ] && surroundCommand=()
     eval 'spark --min 0 "${sparkArgs[@]}"' "${surroundCommand:+|}" '"${surroundCommand[@]}"'
     printf '%s%s%s\n' "${borders[2]}" "$footer" "${borders[3]}"
 }
