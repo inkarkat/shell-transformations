@@ -1,0 +1,130 @@
+#!/bin/bash
+
+: ${DISTRIBUTIONOVERTHEMONTH_BORDERS=⎡ ⎤ ⎣ ⎦}
+typeset -a borders=()
+[ -n "$DISTRIBUTIONOVERTHEMONTH_BORDERS" ] && IFS='' read -r -d '' -a borders <<<"${DISTRIBUTIONOVERTHEMONTH_BORDERS// /}"
+[ ${#borders[@]} -gt 0 ] && borders[-1]="${borders[-1]%$'\n'}"
+
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
+    printf "Usage: echo -e '2021-12-31 11:01\n2022-01-11 12:00\n...'| [DISTRIBUTIONOVERTHEMONTH_BORDERS='/ \ L J'] %q %s\\n" "$(basename "$1")" '[--no-footer] [-F|--field-separator FS] [--day-field N] [--slots-per-day N [--hour-field M]] [SPARK-ARGS ...] [-?|-h|--help]'
+}
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
+Print the distribution of the number of dates (and optionally times of day) that
+fall into a certain slot (1 day by default) over the month; i.e. from the first
+until the last day of the month. Requires the day of the month in the third
+column of the data (after year and month); anything after that is ignored.
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    echo
+    cat <<HELPTEXT
+    --no-footer		Omit the footer that shows the hours.
+    --field-separator|-F FS
+			Use FS for splitting the data into columns (instead of
+			the default whitespace + [-/:]).
+    --day-field N	Take the day of the month from column N instead of 3.
+    --slots-per-day N	Divide each day into N slots (comprising 24 / N
+			hours); default is 1 slot per day. The hour that is
+			required for more than one slot is taken from the fourth
+			column.
+    --hour-field M	Take the hour of the day from column M instead of 4.
+HELPTEXT
+}
+
+typeset -a sparkArgs=()
+separator='[[:space:]_-]'
+dayFieldNr=3
+hourFieldNr=4
+distributionCommand=distributionWithFooter
+slotNum=1
+typeset -a sparkArgs=()
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--no-footer)	shift; distributionCommand=distributionWithoutFooter;;
+	--field-separator|-F)
+			shift; separator="${1:?}"; shift;;
+	--slots-per-day)
+			shift; slotNum="$1"; shift;;
+	--day-field)    shift; dayFieldNr="${1:?}"; shift;;
+	--hour-field)   shift; hourFieldNr="${1:?}"; shift;;
+	--)		sparkArgs+=("$1"); shift; break;;
+	*)		sparkArgs+=("$1"); shift;;
+    esac
+done
+
+tally()
+{
+    awk \
+	--field-separator "$separator" \
+	-v "dayFieldNr=$dayFieldNr" \
+	-v "hourFieldNr=$hourFieldNr" \
+	-v "slotNum=$slotNum" \
+'
+{
+    day = int($dayFieldNr)
+
+    slot = int((day - 1) * slotNum + (slotNum > 1 ? $hourFieldNr * slotNum / 24 : 0))
+    count[slot] += 1
+}
+END {
+    if (slotNum >= 2) {
+	for (h = 1; h <= 31; ++h) {
+	    printf("%-" slotNum "." slotNum "s", h)
+	}
+    } else {
+	for (h = 1; h < 31; h += 3) {
+	    printf("%-3.3s", h)
+	}
+	printf(" ") # Already printed 3 * 10 characters - need one more to make up 31 cells.
+    }
+    printf "\n"
+
+    for (s = 0; s < 31 * slotNum; ++s) {
+	print count[s]
+    }
+}
+'
+}
+
+printDistribution()
+{
+    spark --min 0 "${sparkArgs[@]}"
+}
+
+distributionWithoutFooter()
+{
+    # First line is the footer; following lines are the distribution data to be
+    # graphed.
+    local footer; IFS=$'\n' read -r footer
+
+    printDistribution
+}
+
+distributionWithFooter()
+{
+    # First line is the footer; following lines are the distribution data to be
+    # graphed.
+    local footer; IFS=$'\n' read -r footer
+
+    typeset -a surroundCommand=(surround -- "${borders[0]}" "${borders[1]}"); [ -z "${borders[*]:0:2}" ] && surroundCommand=()
+    eval 'printDistribution' "${surroundCommand:+|}" '"${surroundCommand[@]}"'
+    printf '%s%s%s\n' "${borders[2]}" "$footer" "${borders[3]}"
+}
+
+eval "${inputSource}${inputSource:+|}" tally | $distributionCommand
