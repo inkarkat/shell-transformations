@@ -1,0 +1,112 @@
+#!/bin/bash
+
+: ${DISTRIBUTIONOVERTHEDAY_BORDERS=⎡ ⎤ ⎣ ⎦}
+typeset -a borders=()
+[ -n "$DISTRIBUTIONOVERTHEDAY_BORDERS" ] && IFS='' read -r -d '' -a borders <<<"${DISTRIBUTIONOVERTHEDAY_BORDERS// /}"
+[ ${#borders[@]} -gt 0 ] && borders[-1]="${borders[-1]%$'\n'}"
+
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
+    printf "Usage: echo -e '11:01\n11:30\n12:00\n...'| [DISTRIBUTIONOVERTHEDAY_BORDERS='/ \ L J'] %q %s\\n" "$(basename "$1")" '[--first-hour HH] [--last-hour HH] [--slots-per-hour N] [SPARK-ARGS ...] [-?|-h|--help]'
+}
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
+Print the distribution of the number of times that fall into a certain slot (15
+minutes by default) over the day; i.e. from morning to evening. Requires HH:MM
+in the first column of the data; anything after that (separated by : or
+whitespace, e.g. HH:MM:SS or HH:MM text) is ignored.
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    echo
+    cat <<HELPTEXT
+    --first-hour HH	Start the distribution at HH:00 (omitting any earlier
+			values).
+    --last-hour HH	End the distribution after HH:59 (omitting any later
+			values).
+    --slots-per-hour N	Divide each hour into N slots (comprising 60 / N
+			minutes); default is 4 / 15 minutes.
+HELPTEXT
+}
+
+typeset -a sparkArgs=()
+firstHour=
+lastHour=
+slotNum=4
+typeset -a sparkArgs=()
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--first-hour)	shift; firstHour="$1"; shift;;
+	--last-hour)	shift; lastHour="$1"; shift;;
+	--slots-per-hour)
+			shift; slotNum="$1"; shift;;
+	--)		sparkArgs+=("$1"); shift; break;;
+	*)		sparkArgs+=("$1"); shift;;
+    esac
+done
+
+tally()
+{
+    awk \
+	--field-separator '[[:space:]:]' \
+	-v "firstHour=$firstHour" \
+	-v "lastHour=$lastHour" \
+	-v "slotNum=$slotNum" \
+'
+{
+    hour = int($1)
+    if (firstHour != "" && hour < firstHour) next
+    if (lastHour != "" && hour > lastHour) next
+
+    if (firstReportedHour == "" || firstReportedHour > hour) firstReportedHour = hour
+    if (lastReportedHour == "" || lastReportedHour < hour) lastReportedHour = hour
+
+    slot = int(hour * slotNum + $2 * slotNum / 60)
+    hourCount[slot] += 1
+}
+END {
+    if (firstHour == "") firstHour = firstReportedHour
+    if (lastHour == "") lastHour = lastReportedHour
+    firstSlot = firstHour * slotNum
+    lastSlot = (lastHour + 1) * slotNum - 1
+
+    if (slotNum >= 2) {
+	for (h = firstHour; h <= lastHour; ++h) {
+	    printf("%-" slotNum "." slotNum "s", h)
+	}
+    }
+    printf "\n"
+
+    for (s = firstSlot; s <= lastSlot; ++s) {
+	print hourCount[s]
+    }
+}
+'
+}
+
+distributionWithFooter()
+{
+    # First line is the footer; following lines are the distribution data to be
+    # graphed.
+    IFS=$'\n' read -r footer
+
+    typeset -a surroundCommand=(surround -- "${borders[0]}" "${borders[1]}"); [ -z "${borders[@]:0:1}" ] && surroundCommand=()
+    eval 'spark --min 0 "${sparkArgs[@]}"' "${surroundCommand:+|}" '"${surroundCommand[@]}"'
+    printf '%s%s%s\n' "${borders[2]}" "$footer" "${borders[3]}"
+}
+
+eval "${inputSource}${inputSource:+|}" tally | distributionWithFooter
