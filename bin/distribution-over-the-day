@@ -169,15 +169,15 @@ function render(v)
 	}
     }
 
+    if (graphFieldNr != "" && graphLegend == "") graphLegend = $graphFieldNr
+    if (footerFieldNr != "" && footerLegend == "") footerLegend = $footerFieldNr
+
     hour = int($hourFieldNr)
     if (firstHour != "" && hour < firstHour) next
     if (lastHour != "" && hour > lastHour) next
 
     if (firstReportedHour == "" || firstReportedHour > hour) firstReportedHour = hour
     if (lastReportedHour == "" || lastReportedHour < hour) lastReportedHour = hour
-
-    if (graphFieldNr != "" && graphLegend == "") graphLegend = $graphFieldNr
-    if (footerFieldNr != "" && footerLegend == "") footerLegend = $footerFieldNr
 
     slot = int(hour * slotNum + int($minuteFieldNr) * slotNum / 60)
     hourCount[slot] += 1
