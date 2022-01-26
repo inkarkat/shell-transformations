@@ -119,27 +119,27 @@ tally()
 BEGIN {
     splitFieldNrNum = split(splitFieldNrList, splitFieldNrs, "\n")
 }
-function printSection()
+function printSection(      firstGraphedHour, lastGraphedHour, firstSlot, lastSlot, h, remainingLen, result, s)
 {
     print graphLegend; graphLegend = ""
     print footerLegend; footerLegend = ""
 
-    if (firstHour == "") firstHour = firstReportedHour
-    if (lastHour == "") lastHour = lastReportedHour
-    firstSlot = firstHour * slotNum
-    lastSlot = (lastHour + 1) * slotNum - 1
+    firstGraphedHour = (firstHour == "" ? firstReportedHour : firstHour); firstReportedHour = ""
+    lastGraphedHour = (lastHour == "" ? lastReportedHour : lastHour); lastReportedHour = ""
+    firstSlot = firstGraphedHour * slotNum
+    lastSlot = (lastGraphedHour + 1) * slotNum - 1
 
     if (slotNum >= 2) {
-	for (h = firstHour; h <= lastHour; ++h) {
+	for (h = firstGraphedHour; h <= lastGraphedHour; ++h) {
 	    printf("%-" slotNum "." slotNum "s", h)
 	}
     } else {
 	remainingLen = lastSlot - firstSlot + 1
-	for (h = firstHour; h < lastHour - 1; h += 3) {
+	for (h = firstGraphedHour; h < lastGraphedHour - 1; h += 3) {
 	    printf("%-3.3s", h)
 	    remainingLen -= 3
 	}
-	printf("%-" remainingLen "s", (remainingLen < length(lastHour) ? "" : lastHour))
+	printf("%-" remainingLen "s", (remainingLen < length(lastGraphedHour) ? "" : lastGraphedHour))
     }
     printf "\n"
 
