@@ -111,13 +111,21 @@ tally()
 '
 BEGIN {
     splitFieldNrNum = split(splitFieldNrList, splitFieldNrs, "\n")
+    split("Jan  ,Feb ,Mar ,Apr ,May  ,Jun ,Jul ,Aug  ,Sep ,Oct  ,Nov  ,Dec  ", monthLegend, /,/)
+}
+function printFooter(      footer, i)
+{
+    for (i = 1; i <= 12; ++i) {
+	footer = footer monthLegend[i]
+    }
+    print footer
 }
 function printSection(      h, result, d, s)
 {
     print graphLegend; graphLegend = ""
     print footerLegend; footerLegend = ""
 
-    print("Jan  Feb Mar Apr May  Jun Jul Aug  Sep Oct  Nov  Dec  ")
+    printFooter()
 
     for (d = 0; d < 7; ++d) {
 	result = ""
