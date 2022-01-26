@@ -9,7 +9,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '11:01\\\\n11:30\\\\n12:00\\\\n...'| [DISTRIBUTIONOVERTHEDAY_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEDAY_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [--first-hour HH] [--last-hour HH] [--slots-per-hour N] [--split-graph-field N [--split-graph-field ...]] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '11:01\\\\n11:30\\\\n12:00\\\\n...'| [DISTRIBUTIONOVERTHEDAY_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEDAY_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [-F|--field-separator FS] [--first-hour HH] [--last-hour HH] [--slots-per-hour N] [--split-graph-field N [--split-graph-field ...]] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -44,6 +44,9 @@ HELPDESCRIPTION
     --footer-field N	Add text captured from the first non-empty column N of
 			the input data in front of the footer. If --no-footer,
 			this will be put after the graph legend instead.
+    --field-separator|-F FS
+			Use FS for splitting the data into columns (instead of
+			the default whitespace + [:_/-]).
     --first-hour HH	Start the distribution at HH:00 (omitting any earlier
 			values).
     --last-hour HH	End the distribution after HH:59 (omitting any later
@@ -63,9 +66,10 @@ graphLegendText=
 graphFieldNr=
 footerLegendText=
 footerFieldNr=
-isFooter=t
+separator='[[:space:]:_/-]'
 firstHour=
 lastHour=
+isFooter=t
 slotNum=4
 typeset -a splitFieldNrs=()
 typeset -a sparkArgs=()
@@ -79,6 +83,8 @@ do
 	--footer-legend)
 			shift; footerLegendText="$1"; shift;;
 	--footer-field)	shift; footerFieldNr="$1"; shift;;
+	--field-separator|-F)
+			shift; separator="${1:?}"; shift;;
 	--first-hour)	shift; firstHour="$1"; shift;;
 	--last-hour)	shift; lastHour="$1"; shift;;
 	--slots-per-hour)
@@ -94,7 +100,7 @@ IFS=$'\n'
 tally()
 {
     awk \
-	--field-separator '[[:space:]:]' \
+	--field-separator "$separator" \
 	-v "graphFieldNr=$graphFieldNr" \
 	-v "footerFieldNr=$footerFieldNr" \
 	-v "firstHour=$firstHour" \
