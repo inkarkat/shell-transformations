@@ -169,8 +169,11 @@ printDistribution()
 {
     while :
     do
-	# First line is the footer; following line is the distribution data to be
-	# graphed.
+	# Each section consists of 4 lines:
+	# - legend for graph
+	# - legend for footer
+	# - footer
+	# - comma-separated data
 	local graphLegendFromData; IFS=$'\n' read -r graphLegendFromData || break
 	local graphLegend="${graphLegendFromData:-$graphLegendText}"
 	local footerLegendFromData; IFS=$'\n' read -r footerLegendFromData || break
