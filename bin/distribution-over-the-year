@@ -1,5 +1,6 @@
 #!/bin/bash
 
+: ${DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL= }
 : ${DISTRIBUTIONOVERTHEYEAR_BORDERS=⎡ ⎤ ⎢ ⎥ ⎣ ⎦}
 typeset -a borders=()
 [ -n "$DISTRIBUTIONOVERTHEYEAR_BORDERS" ] && IFS='' read -r -d '' -a borders <<<"${DISTRIBUTIONOVERTHEYEAR_BORDERS// /}"
@@ -9,7 +10,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| [DISTRIBUTIONOVERTHEYEAR_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEYEAR_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [-F|--field-separator FS] [--year YYYY |--year-field Y] [--month-field M] [--day-field D] [--slots-per-day N [--hour-field M]] [--split-graph-field N [--split-graph-field ...]] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| [DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL='-'] [DISTRIBUTIONOVERTHEYEAR_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEYEAR_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [-F|--field-separator FS] [--year YYYY |--year-field Y] [--month-field M] [--day-field D] [--slots-per-day N [--hour-field M]] [--split-graph-field N [--split-graph-field ...]] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -106,6 +107,7 @@ tally()
 	-v "monthFieldNr=$monthFieldNr" \
 	-v "dayFieldNr=$dayFieldNr" \
 	-v "splitFieldNrList=${splitFieldNrs[*]//\\/\\\\}" \
+	-v "emptyCell=${DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL//\\/\\\\}" \
 '
 BEGIN {
     splitFieldNrNum = split(splitFieldNrList, splitFieldNrs, "\n")
@@ -128,7 +130,7 @@ function printSection(      h, result, d, s)
 }
 function render(v)
 {
-    return (v == "" ? " " : v)
+    return (v == "" ? emptyCell : v)
 }
 {
     for (i in splitFieldNrs) {
