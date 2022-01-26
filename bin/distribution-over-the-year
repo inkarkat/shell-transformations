@@ -1,0 +1,225 @@
+#!/bin/bash
+
+: ${DISTRIBUTIONOVERTHEYEAR_BORDERS=⎡ ⎤ ⎢ ⎥ ⎣ ⎦}
+typeset -a borders=()
+[ -n "$DISTRIBUTIONOVERTHEYEAR_BORDERS" ] && IFS='' read -r -d '' -a borders <<<"${DISTRIBUTIONOVERTHEYEAR_BORDERS// /}"
+[ ${#borders[@]} -gt 0 ] && borders[-1]="${borders[-1]%$'\n'}"
+
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
+    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| [DISTRIBUTIONOVERTHEYEAR_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEYEAR_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [-F|--field-separator FS] [--year YYYY |--year-field Y] [--month-field M] [--day-field D] [--slots-per-day N [--hour-field M]] [--split-graph-field N [--split-graph-field ...]] [SPARK-ARGS ...] [-?|-h|--help]'
+}
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
+Print the distribution of the number of dates that fall onto a certain day over
+the year; i.e. from the first until the last day of the year. Requires the month
+and day of the year in the second / third column of the data (after year);
+anything after that is ignored.
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    echo
+    cat <<HELPTEXT
+    --no-footer		Omit the footer that shows the months.
+    --graph-legend TEXT	Add TEXT in front of the distribution. This will also be
+			the fallback text if no field value is found.
+    --graph-field N	Add text captured from the first non-empty column N of
+			the input data in front of the distribution.
+    --footer-legend TEXT
+			Add TEXT in front of the footer. If --no-footer, this
+			will be put after the graph legend instead. This will
+			also be the fallback text if no field value is found.
+    --footer-field N	Add text captured from the first non-empty column N of
+			the input data in front of the footer. If --no-footer,
+			this will be put after the graph legend instead.
+    --field-separator|-F FS
+			Use FS for splitting the data into columns (instead of
+			the default whitespace + [:_/-]).
+    --year YYYY		Assume a static year YYYY.
+    --year-field Y	Take the year from column Y instead of 1.
+    --month-field M	Take the month of the year from column M instead of 2.
+    --day-field D	Take the day of the year from column D instead of 3.
+    --split-graph-field N
+			Whenever the non-empty value of column N changes, start
+			a new graph. If you want to graph every year
+			separately, pass the year column here.
+HELPTEXT
+}
+
+typeset -a sparkArgs=()
+graphLegendText=
+graphFieldNr=
+footerLegendText=
+footerFieldNr=
+separator='[[:space:]:_/-]'
+year=
+yearFieldNr=1
+monthFieldNr=2
+dayFieldNr=3
+isFooter=t
+typeset -a splitFieldNrs=()
+typeset -a sparkArgs=()
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--no-footer)	shift; isFooter=;;
+	--graph-legend)	shift; graphLegendText="$1"; shift;;
+	--graph-field)	shift; graphFieldNr="$1"; shift;;
+	--footer-legend)
+			shift; footerLegendText="$1"; shift;;
+	--footer-field)	shift; footerFieldNr="$1"; shift;;
+	--field-separator|-F)
+			shift; separator="${1:?}"; shift;;
+	--year)		shift; year="${1:?}"; shift;;
+	--year-field)  shift; yearFieldNr="${1:?}"; shift;;
+	--month-field)  shift; monthFieldNr="${1:?}"; shift;;
+	--day-field)    shift; dayFieldNr="${1:?}"; shift;;
+	--split-graph-field)
+			shift; splitFieldNrs+=("$1"); shift;;
+	--)		sparkArgs+=("$1"); shift; break;;
+	*)		sparkArgs+=("$1"); shift;;
+    esac
+done
+
+IFS=$'\n'
+tally()
+{
+    awk \
+	--field-separator "$separator" \
+	-v "graphFieldNr=$graphFieldNr" \
+	-v "footerFieldNr=$footerFieldNr" \
+	-v "year=$year" \
+	-v "yearFieldNr=$yearFieldNr" \
+	-v "monthFieldNr=$monthFieldNr" \
+	-v "dayFieldNr=$dayFieldNr" \
+	-v "splitFieldNrList=${splitFieldNrs[*]//\\/\\\\}" \
+'
+BEGIN {
+    splitFieldNrNum = split(splitFieldNrList, splitFieldNrs, "\n")
+}
+function printSection(      h, result, d, s)
+{
+    print graphLegend; graphLegend = ""
+    print footerLegend; footerLegend = ""
+
+    print("Jan  Feb Mar Apr May  Jun Jul Aug  Sep Oct  Nov  Dec  ")
+
+    for (d = 0; d < 7; ++d) {
+	result = ""
+	for (s = 1; s < 366 + 7; s += 7) {
+	    result = result (s == 1 ? "" : ",") render(count[s + d])
+	}
+	print result
+    }
+    delete count
+}
+function render(v)
+{
+    return (v == "" ? " " : v)
+}
+{
+    for (i in splitFieldNrs) {
+	sf = splitFieldNrs[i]
+	if ($sf != "" && watchedFields[sf] != "" && watchedFields[sf] != $sf) {
+	    printSection()
+
+	    delete watchedFields
+	    for (sf in splitFieldNrs) {
+		if ($sf != "") watchedFields[sf] = $sf
+	    }
+	    break
+	} else if (watchedFields[sf] == "" && $sf != "") {
+	    watchedFields[sf] = $sf
+	}
+    }
+
+    if (graphFieldNr != "" && graphLegend == "") graphLegend = $graphFieldNr
+    if (footerFieldNr != "" && footerLegend == "") footerLegend = $footerFieldNr
+
+    thisYear = (year == "" ? $yearFieldNr : year)
+    epoch = mktime(thisYear " " $monthFieldNr " " $dayFieldNr " 12 00 00")
+    if (epoch == -1) {
+	printf("Invalid date in line %d: %s\\n", NR, $0) > "/dev/stderr"
+	next
+    }
+
+    dayOfYear = int(strftime("%j", epoch))
+    firstDayEpoch = mktime(thisYear " 01 01 12 00 00")
+    dayOfWeekOffset = int(strftime("%u", firstDayEpoch)) - 1 # Map the same weekday of different years to the same slot; it is less important if something happened Apr-1 or Apr-3, but rather whether it happened on the first Monday of April.
+
+    slot = dayOfYear + dayOfWeekOffset
+    count[slot] += 1
+}
+END {
+    printSection()
+}
+'
+}
+
+printDistribution()
+{
+    local status=99
+    while :
+    do
+	# Each section consists of 4 lines:
+	# - legend for graph
+	# - legend for footer
+	# - footer
+	# - comma-separated data for Mondays
+	# - comma-separated data for Tuesdays
+	# ...
+	# - comma-separated data for Sundays
+	local graphLegendFromData; IFS=$'\n' read -r graphLegendFromData || break
+	local graphLegend="${graphLegendFromData:-$graphLegendText}"
+	local footerLegendFromData; IFS=$'\n' read -r footerLegendFromData || break
+	local footerLegend="${footerLegendFromData:-$footerLegendText}"
+	local legendWidth=$DISTRIBUTIONOVERTHEYEAR_LEGEND_LENGTH
+
+	if [ -z "$legendWidth" ]; then
+	    legendWidth=$((${#graphLegend} > ${#footerLegend} ? ${#graphLegend} : ${#footerLegend}))
+	    [ -n "${borders[0]}" ] || let legendWidth+=1
+	fi
+
+	local footer; IFS=$'\n' read -r footer || break
+	local wholeWeekData= weekdayData= i
+	for ((i = 0; i < 7; i++))
+	do
+	    IFS=$'\n' read -r weekdayData || break
+	    wholeWeekData="${wholeWeekData}${wholeWeekData:+$',\n,'}${weekdayData}"
+	done
+
+	readarray -t renderedLines < <(spark --min 0 "${sparkArgs[@]}" "$wholeWeekData"; printf '\n%d\n' "$?")	# Exit status from the process substitution is lost; return the actual exit status via an appended additional line.
+	status=${renderedLines[-1]}; unset 'renderedLines[-1]'
+	[ -z "${renderedLines[-1]}" ] && unset 'renderedLines[-1]'
+
+	    printf "%${legendWidth}.${legendWidth}s%s%s%s\\n"  "${isFooter:+Mon}"	"${borders[0]}" "${renderedLines[0]}" "${borders[1]}"
+	    printf "%-${legendWidth}.${legendWidth}s%s%s%s\\n" ''			"${borders[2]}" "${renderedLines[1]}" "${borders[3]}"
+	    printf "%${legendWidth}.${legendWidth}s%s%s%s\\n"  "${isFooter:+Wed}"	"${borders[2]}" "${renderedLines[2]}" "${borders[3]}"
+	    printf "%-${legendWidth}.${legendWidth}s%s%s%s\\n" ''			"${borders[2]}" "${renderedLines[3]}" "${borders[3]}"
+	    printf "%${legendWidth}.${legendWidth}s%s%s%s\\n"  "${isFooter:+Fri}"	"${borders[2]}" "${renderedLines[4]}" "${borders[3]}"
+	if [ "$isFooter" ]; then
+	    printf "%${legendWidth}.${legendWidth}s%s%s%s\\n"  ''			"${borders[2]}" "${renderedLines[5]}" "${borders[3]}"
+	    printf "%${legendWidth}.${legendWidth}s%s%s%s\\n"  "$graphLegend"		"${borders[4]}" "${renderedLines[6]}" "${borders[5]}"
+	    printf "%-${legendWidth}.${legendWidth}s%s%s%s\\n" "$footerLegend"		"${borders[4]//?/ }" "$footer" "${borders[5]//?/ }"
+	else
+	    printf "%${legendWidth}.${legendWidth}s%s%s%s\\n"  "$graphLegend"		"${borders[2]}" "${renderedLines[5]}" "${borders[3]}"
+	    printf "%-${legendWidth}.${legendWidth}s%s%s%s\\n" "$footerLegend"		"${borders[4]}" "${renderedLines[6]}" "${borders[5]}"
+	fi
+    done
+    return $status
+}
+
+tally | printDistribution
