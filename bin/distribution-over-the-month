@@ -46,7 +46,7 @@ HELPDESCRIPTION
 			this will be put after the graph legend instead.
     --field-separator|-F FS
 			Use FS for splitting the data into columns (instead of
-			the default whitespace + [-/:]).
+			the default whitespace + [:_/-]).
     --day-field N	Take the day of the month from column N instead of 3.
     --slots-per-day N	Divide each day into N slots (comprising 24 / N
 			hours); default is 1 slot per day. The hour that is
@@ -65,7 +65,7 @@ graphLegendText=
 graphFieldNr=
 footerLegendText=
 footerFieldNr=
-separator='[[:space:]_-]'
+separator='[[:space:]:_/-]'
 dayFieldNr=3
 hourFieldNr=4
 isFooter=t
@@ -158,7 +158,7 @@ function render(v)
     if (graphFieldNr != "" && graphLegend == "") graphLegend = $graphFieldNr
     if (footerFieldNr != "" && footerLegend == "") footerLegend = $footerFieldNr
 
-    slot = int((day - 1) * slotNum + (slotNum > 1 ? $hourFieldNr * slotNum / 24 : 0))
+    slot = int((day - 1) * slotNum + (slotNum > 1 ? int($hourFieldNr) * slotNum / 24 : 0))
     count[slot] += 1
 }
 END {
