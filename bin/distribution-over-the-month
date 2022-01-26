@@ -153,12 +153,10 @@ function render(v)
 	}
     }
 
-    day = int($dayFieldNr)
-
     if (graphFieldNr != "" && graphLegend == "") graphLegend = $graphFieldNr
     if (footerFieldNr != "" && footerLegend == "") footerLegend = $footerFieldNr
 
-    slot = int((day - 1) * slotNum + (slotNum > 1 ? int($hourFieldNr) * slotNum / 24 : 0))
+    slot = int((int($dayFieldNr) - 1) * slotNum + (slotNum > 1 ? int($hourFieldNr) * slotNum / 24 : 0))
     count[slot] += 1
 }
 END {
