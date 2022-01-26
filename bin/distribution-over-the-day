@@ -204,7 +204,7 @@ printDistribution()
 	local footer; IFS=$'\n' read -r footer || break
 	local data; IFS=$'\n' read -r data || break
 
-	local renderedDistribution; renderedDistribution="$(printf '%s\n' "$data" | spark --min 0 "${sparkArgs[@]}")"
+	local renderedDistribution; renderedDistribution="$(spark --min 0 "${sparkArgs[@]}" "$data")"
 
 	local legendWidth=$DISTRIBUTIONOVERTHEDAY_LEGEND_LENGTH
 
