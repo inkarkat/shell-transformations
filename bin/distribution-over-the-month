@@ -76,6 +76,10 @@ tally()
 	-v "hourFieldNr=$hourFieldNr" \
 	-v "slotNum=$slotNum" \
 '
+function render(v)
+{
+    return (v == "" ? " " : v)
+}
 {
     day = int($dayFieldNr)
 
@@ -95,9 +99,11 @@ END {
     }
     printf "\n"
 
-    for (s = 0; s < 31 * slotNum; ++s) {
-	print count[s]
+    result = render(count[0])
+    for (s = 1; s < 31 * slotNum; ++s) {
+	result = result "," render(count[s])
     }
+    print result
 }
 '
 }
@@ -118,12 +124,13 @@ distributionWithoutFooter()
 
 distributionWithFooter()
 {
-    # First line is the footer; following lines are the distribution data to be
+    # First line is the footer; following line is the distribution data to be
     # graphed.
     local footer; IFS=$'\n' read -r footer
+    local data; IFS=$'\n' read -r data
 
     typeset -a surroundCommand=(surround -- "${borders[0]}" "${borders[1]}"); [ -z "${borders[*]:0:2}" ] && surroundCommand=()
-    eval 'printDistribution' "${surroundCommand:+|}" '"${surroundCommand[@]}"'
+    printf '%s\n' "$data" | eval 'printDistribution' "${surroundCommand:+|}" '"${surroundCommand[@]}"'
     printf '%s%s%s\n' "${borders[2]}" "$footer" "${borders[3]}"
 }
 
