@@ -49,14 +49,14 @@ typeset -a sparkArgs=()
 separator='[[:space:]_-]'
 dayFieldNr=3
 hourFieldNr=4
-distributionCommand=distributionWithFooter
+isFooter=t
 slotNum=1
 typeset -a sparkArgs=()
 while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
-	--no-footer)	shift; distributionCommand=distributionWithoutFooter;;
+	--no-footer)	shift; isFooter=;;
 	--field-separator|-F)
 			shift; separator="${1:?}"; shift;;
 	--slots-per-day)
@@ -110,28 +110,18 @@ END {
 
 printDistribution()
 {
-    spark --min 0 "${sparkArgs[@]}"
-}
-
-distributionWithoutFooter()
-{
-    # First line is the footer; following lines are the distribution data to be
-    # graphed.
-    local footer; IFS=$'\n' read -r footer
-
-    printDistribution
-}
-
-distributionWithFooter()
-{
     # First line is the footer; following line is the distribution data to be
     # graphed.
     local footer; IFS=$'\n' read -r footer
     local data; IFS=$'\n' read -r data
 
-    local renderedDistribution; renderedDistribution="$(printf '%s\n' "$data" | printDistribution)"
-    printf '%s%s%s\n' "${borders[0]}" "$renderedDistribution" "${borders[1]}"
-    printf '%s%s%s\n' "${borders[2]}" "$footer" "${borders[3]}"
+    local renderedDistribution; renderedDistribution="$(printf '%s\n' "$data" | spark --min 0 "${sparkArgs[@]}")"
+    if [ "$isFooter" ]; then
+	printf '%s%s%s\n' "${borders[0]}" "$renderedDistribution" "${borders[1]}"
+	printf '%s%s%s\n' "${borders[2]}" "$footer" "${borders[3]}"
+    else
+	printf '%s\n' "$renderedDistribution"
+    fi
 }
 
-eval "${inputSource}${inputSource:+|}" tally | $distributionCommand
+eval "${inputSource}${inputSource:+|}" tally | printDistribution
