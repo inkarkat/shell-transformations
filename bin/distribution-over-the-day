@@ -9,7 +9,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '11:01\n11:30\n12:00\n...'| [DISTRIBUTIONOVERTHEDAY_BORDERS='/ \ L J'] %q %s\\n" "$(basename "$1")" '[--no-footer] [--first-hour HH] [--last-hour HH] [--slots-per-hour N] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '11:01\n11:30\n12:00\n...'| [DISTRIBUTIONOVERTHEDAY_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEDAY_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer] [--graph-legend TEXT] [--footer-legend TEXT] [--first-hour HH] [--last-hour HH] [--slots-per-hour N] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -33,6 +33,10 @@ HELPDESCRIPTION
     echo
     cat <<HELPTEXT
     --no-footer		Omit the footer that shows the hours.
+    --graph-legend TEXT	Add TEXT in front of the distribution.
+    --footer-legend TEXT
+			Add TEXT in front of the footer. If --no-footer, this
+			will be put after the graph legend instead.
     --first-hour HH	Start the distribution at HH:00 (omitting any earlier
 			values).
     --last-hour HH	End the distribution after HH:59 (omitting any later
@@ -43,6 +47,8 @@ HELPTEXT
 }
 
 typeset -a sparkArgs=()
+graphLegend=
+footerLegend=
 isFooter=t
 firstHour=
 lastHour=
@@ -53,6 +59,9 @@ do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
 	--no-footer)	shift; isFooter=;;
+	--graph-legend)	shift; graphLegend="$1"; shift;;
+	--footer-legend)
+			shift; footerLegend="$1"; shift;;
 	--first-hour)	shift; firstHour="$1"; shift;;
 	--last-hour)	shift; lastHour="$1"; shift;;
 	--slots-per-hour)
@@ -122,11 +131,20 @@ printDistribution()
     local data; IFS=$'\n' read -r data
 
     local renderedDistribution; renderedDistribution="$(printf '%s\n' "$data" | spark --min 0 "${sparkArgs[@]}")"
+
+    local legendWidth=$DISTRIBUTIONOVERTHEDAY_LEGEND_LENGTH
+
     if [ "$isFooter" ]; then
-	printf '%s%s%s\n' "${borders[0]}" "$renderedDistribution" "${borders[1]}"
-	printf '%s%s%s\n' "${borders[2]}" "$footer" "${borders[3]}"
+	if [ -z "$legendWidth" ]; then
+	    legendWidth=$((${#graphLegend} > ${#footerLegend} ? ${#graphLegend} : ${#footerLegend}))
+	    [ -n "${borders[0]}" ] || let legendWidth+=1
+	fi
+
+	printf "%-${legendWidth}.${legendWidth}s%s%s%s\\n" "$graphLegend" "${borders[0]}" "$renderedDistribution" "${borders[1]}"
+	printf "%-${legendWidth}.${legendWidth}s%s%s%s\\n" "$footerLegend" "${borders[2]}" "$footer" "${borders[3]}"
     else
-	printf '%s\n' "$renderedDistribution"
+	local completeLegend="$graphLegend"; [ -n "$graphLegend" -a -n "$footerLegend" ] && completeLegend="${completeLegend} "; completeLegend="${completeLegend}${footerLegend}"
+	printf "%${legendWidth:+-}${legendWidth}${legendWidth:+.}${legendWidth}s%s\\n" "$completeLegend" "$renderedDistribution"
     fi
 }
 
