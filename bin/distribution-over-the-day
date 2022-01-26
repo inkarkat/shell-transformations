@@ -9,7 +9,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '11:01\n11:30\n12:00\n...'| [DISTRIBUTIONOVERTHEDAY_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEDAY_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [--first-hour HH] [--last-hour HH] [--slots-per-hour N] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '11:01\n11:30\n12:00\n...'| [DISTRIBUTIONOVERTHEDAY_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEDAY_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [--first-hour HH] [--last-hour HH] [--slots-per-hour N] [--split-graph-field N [--split-graph-field ...]] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -50,6 +50,11 @@ HELPDESCRIPTION
 			values).
     --slots-per-hour N	Divide each hour into N slots (comprising 60 / N
 			minutes); default is 4 / 15 minutes.
+    --split-graph-field N
+			Whenever the non-empty value of column N changes, start
+			a new graph. If you want to graph every day separately,
+			pass the day (and month and year if data may have large
+			gaps in between) columns here. HELPTEXT
 HELPTEXT
 }
 
@@ -62,6 +67,7 @@ isFooter=t
 firstHour=
 lastHour=
 slotNum=4
+typeset -a splitFieldNrs=()
 typeset -a sparkArgs=()
 while [ $# -ne 0 ]
 do
@@ -77,11 +83,14 @@ do
 	--last-hour)	shift; lastHour="$1"; shift;;
 	--slots-per-hour)
 			shift; slotNum="$1"; shift;;
+	--split-graph-field)
+			shift; splitFieldNrs+=("$1"); shift;;
 	--)		sparkArgs+=("$1"); shift; break;;
 	*)		sparkArgs+=("$1"); shift;;
     esac
 done
 
+IFS=$'\n'
 tally()
 {
     awk \
@@ -91,7 +100,11 @@ tally()
 	-v "firstHour=$firstHour" \
 	-v "lastHour=$lastHour" \
 	-v "slotNum=$slotNum" \
+	-v "splitFieldNrList=${splitFieldNrs[*]//\\/\\\\}" \
 '
+BEGIN {
+    splitFieldNrNum = split(splitFieldNrList, splitFieldNrs, "\n")
+}
 function printSection()
 {
     print graphLegend; graphLegend = ""
@@ -127,6 +140,21 @@ function render(v)
     return (v == "" ? " " : v)
 }
 {
+    for (i in splitFieldNrs) {
+	sf = splitFieldNrs[i]
+	if ($sf != "" && watchedFields[sf] != "" && watchedFields[sf] != $sf) {
+	    printSection()
+
+	    delete watchedFields
+	    for (sf in splitFieldNrs) {
+		if ($sf != "") watchedFields[sf] = $sf
+	    }
+	    break
+	} else if (watchedFields[sf] == "" && $sf != "") {
+	    watchedFields[sf] = $sf
+	}
+    }
+
     hour = int($1)
     if (firstHour != "" && hour < firstHour) next
     if (lastHour != "" && hour > lastHour) next
@@ -148,31 +176,34 @@ END {
 
 printDistribution()
 {
-    # First line is the footer; following line is the distribution data to be
-    # graphed.
-    local graphLegendFromData; IFS=$'\n' read -r graphLegendFromData
-    local graphLegend="${graphLegendFromData:-$graphLegendText}"
-    local footerLegendFromData; IFS=$'\n' read -r footerLegendFromData
-    local footerLegend="${footerLegendFromData:-$footerLegendText}"
-    local footer; IFS=$'\n' read -r footer
-    local data; IFS=$'\n' read -r data
+    while :
+    do
+	# First line is the footer; following line is the distribution data to be
+	# graphed.
+	local graphLegendFromData; IFS=$'\n' read -r graphLegendFromData || break
+	local graphLegend="${graphLegendFromData:-$graphLegendText}"
+	local footerLegendFromData; IFS=$'\n' read -r footerLegendFromData || break
+	local footerLegend="${footerLegendFromData:-$footerLegendText}"
+	local footer; IFS=$'\n' read -r footer || break
+	local data; IFS=$'\n' read -r data || break
 
-    local renderedDistribution; renderedDistribution="$(printf '%s\n' "$data" | spark --min 0 "${sparkArgs[@]}")"
+	local renderedDistribution; renderedDistribution="$(printf '%s\n' "$data" | spark --min 0 "${sparkArgs[@]}")"
 
-    local legendWidth=$DISTRIBUTIONOVERTHEDAY_LEGEND_LENGTH
+	local legendWidth=$DISTRIBUTIONOVERTHEDAY_LEGEND_LENGTH
 
-    if [ "$isFooter" ]; then
-	if [ -z "$legendWidth" ]; then
-	    legendWidth=$((${#graphLegend} > ${#footerLegend} ? ${#graphLegend} : ${#footerLegend}))
-	    [ -n "${borders[0]}" ] || let legendWidth+=1
+	if [ "$isFooter" ]; then
+	    if [ -z "$legendWidth" ]; then
+		legendWidth=$((${#graphLegend} > ${#footerLegend} ? ${#graphLegend} : ${#footerLegend}))
+		[ -n "${borders[0]}" ] || let legendWidth+=1
+	    fi
+
+	    printf "%-${legendWidth}.${legendWidth}s%s%s%s\\n" "$graphLegend" "${borders[0]}" "$renderedDistribution" "${borders[1]}"
+	    printf "%-${legendWidth}.${legendWidth}s%s%s%s\\n" "$footerLegend" "${borders[2]}" "$footer" "${borders[3]}"
+	else
+	    local completeLegend="$graphLegend"; [ -n "$graphLegend" -a -n "$footerLegend" ] && completeLegend="${completeLegend} "; completeLegend="${completeLegend}${footerLegend}"
+	    printf "%${legendWidth:+-}${legendWidth}${legendWidth:+.}${legendWidth}s%s\\n" "$completeLegend" "$renderedDistribution"
 	fi
-
-	printf "%-${legendWidth}.${legendWidth}s%s%s%s\\n" "$graphLegend" "${borders[0]}" "$renderedDistribution" "${borders[1]}"
-	printf "%-${legendWidth}.${legendWidth}s%s%s%s\\n" "$footerLegend" "${borders[2]}" "$footer" "${borders[3]}"
-    else
-	local completeLegend="$graphLegend"; [ -n "$graphLegend" -a -n "$footerLegend" ] && completeLegend="${completeLegend} "; completeLegend="${completeLegend}${footerLegend}"
-	printf "%${legendWidth:+-}${legendWidth}${legendWidth:+.}${legendWidth}s%s\\n" "$completeLegend" "$renderedDistribution"
-    fi
+    done
 }
 
 eval "${inputSource}${inputSource:+|}" tally | printDistribution
