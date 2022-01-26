@@ -9,7 +9,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '11:01\\\\n11:30\\\\n12:00\\\\n...'| [DISTRIBUTIONOVERTHEDAY_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEDAY_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [-F|--field-separator FS] [--first-hour HH] [--last-hour HH] [--slots-per-hour N] [--split-graph-field N [--split-graph-field ...]] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '11:01\\\\n11:30\\\\n12:00\\\\n...'| [DISTRIBUTIONOVERTHEDAY_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEDAY_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [-F|--field-separator FS] [--hour-field N] [--minute-field M] [--first-hour HH] [--last-hour HH] [--slots-per-hour N] [--split-graph-field N [--split-graph-field ...]] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -47,6 +47,8 @@ HELPDESCRIPTION
     --field-separator|-F FS
 			Use FS for splitting the data into columns (instead of
 			the default whitespace + [:_/-]).
+    --hour-field N	Take the hour of the day from column N instead of 1.
+    --minute-field N	Take the minute of the day from column M instead of 2.
     --first-hour HH	Start the distribution at HH:00 (omitting any earlier
 			values).
     --last-hour HH	End the distribution after HH:59 (omitting any later
@@ -67,6 +69,8 @@ graphFieldNr=
 footerLegendText=
 footerFieldNr=
 separator='[[:space:]:_/-]'
+hourFieldNr=1
+minuteFieldNr=1
 firstHour=
 lastHour=
 isFooter=t
@@ -85,6 +89,8 @@ do
 	--footer-field)	shift; footerFieldNr="$1"; shift;;
 	--field-separator|-F)
 			shift; separator="${1:?}"; shift;;
+	--hour-field)   shift; hourFieldNr="${1:?}"; shift;;
+	--minute-field)	shift; minuteFieldNr="${1:?}"; shift;;
 	--first-hour)	shift; firstHour="$1"; shift;;
 	--last-hour)	shift; lastHour="$1"; shift;;
 	--slots-per-hour)
@@ -103,6 +109,8 @@ tally()
 	--field-separator "$separator" \
 	-v "graphFieldNr=$graphFieldNr" \
 	-v "footerFieldNr=$footerFieldNr" \
+	-v "hourFieldNr=$hourFieldNr" \
+	-v "minuteFieldNr=$minuteFieldNr" \
 	-v "firstHour=$firstHour" \
 	-v "lastHour=$lastHour" \
 	-v "slotNum=$slotNum" \
@@ -161,7 +169,7 @@ function render(v)
 	}
     }
 
-    hour = int($1)
+    hour = int($hourFieldNr)
     if (firstHour != "" && hour < firstHour) next
     if (lastHour != "" && hour > lastHour) next
 
@@ -171,7 +179,7 @@ function render(v)
     if (graphFieldNr != "" && graphLegend == "") graphLegend = $graphFieldNr
     if (footerFieldNr != "" && footerLegend == "") footerLegend = $footerFieldNr
 
-    slot = int(hour * slotNum + $2 * slotNum / 60)
+    slot = int(hour * slotNum + int($minuteFieldNr) * slotNum / 60)
     hourCount[slot] += 1
 }
 END {
