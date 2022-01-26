@@ -9,7 +9,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '2021-12-31 11:01\n2022-01-11 12:00\n...'| [DISTRIBUTIONOVERTHEMONTH_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEMONTH_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [-F|--field-separator FS] [--day-field N] [--slots-per-day N [--hour-field M]] [--split-graph-field N [--split-graph-field ...]] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| [DISTRIBUTIONOVERTHEMONTH_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEMONTH_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [-F|--field-separator FS] [--day-field N] [--slots-per-day N [--hour-field M]] [--split-graph-field N [--split-graph-field ...]] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {

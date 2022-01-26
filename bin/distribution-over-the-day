@@ -9,7 +9,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '11:01\n11:30\n12:00\n...'| [DISTRIBUTIONOVERTHEDAY_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEDAY_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [--first-hour HH] [--last-hour HH] [--slots-per-hour N] [--split-graph-field N [--split-graph-field ...]] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '11:01\\\\n11:30\\\\n12:00\\\\n...'| [DISTRIBUTIONOVERTHEDAY_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEDAY_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [--first-hour HH] [--last-hour HH] [--slots-per-hour N] [--split-graph-field N [--split-graph-field ...]] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {
