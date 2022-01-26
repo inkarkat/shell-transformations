@@ -110,7 +110,7 @@ tally()
 BEGIN {
     splitFieldNrNum = split(splitFieldNrList, splitFieldNrs, "\n")
 }
-function printSection()
+function printSection(      h, result, s)
 {
     print graphLegend; graphLegend = ""
     print footerLegend; footerLegend = ""
