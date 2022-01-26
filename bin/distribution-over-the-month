@@ -9,7 +9,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '2021-12-31 11:01\n2022-01-11 12:00\n...'| [DISTRIBUTIONOVERTHEMONTH_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEMONTH_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer] [--graph-legend TEXT] [--footer-legend TEXT] [-F|--field-separator FS] [--day-field N] [--slots-per-day N [--hour-field M]] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '2021-12-31 11:01\n2022-01-11 12:00\n...'| [DISTRIBUTIONOVERTHEMONTH_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEMONTH_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [-F|--field-separator FS] [--day-field N] [--slots-per-day N [--hour-field M]] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -33,10 +33,17 @@ HELPDESCRIPTION
     echo
     cat <<HELPTEXT
     --no-footer		Omit the footer that shows the hours.
-    --graph-legend TEXT	Add TEXT in front of the distribution.
+    --graph-legend TEXT	Add TEXT in front of the distribution. This will also be
+			the fallback text if no field value is found.
+    --graph-field N	Add text captured from the first non-empty column N of
+			the input data in front of the distribution.
     --footer-legend TEXT
 			Add TEXT in front of the footer. If --no-footer, this
-			will be put after the graph legend instead.
+			will be put after the graph legend instead. This will
+			also be the fallback text if no field value is found.
+    --footer-field N	Add text captured from the first non-empty column N of
+			the input data in front of the footer. If --no-footer,
+			this will be put after the graph legend instead.
     --field-separator|-F FS
 			Use FS for splitting the data into columns (instead of
 			the default whitespace + [-/:]).
@@ -50,8 +57,10 @@ HELPTEXT
 }
 
 typeset -a sparkArgs=()
-graphLegend=
-footerLegend=
+graphLegendText=
+graphFieldNr=
+footerLegendText=
+footerFieldNr=
 separator='[[:space:]_-]'
 dayFieldNr=3
 hourFieldNr=4
@@ -63,9 +72,11 @@ do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
 	--no-footer)	shift; isFooter=;;
-	--graph-legend)	shift; graphLegend="$1"; shift;;
+	--graph-legend)	shift; graphLegendText="$1"; shift;;
+	--graph-field)	shift; graphFieldNr="$1"; shift;;
 	--footer-legend)
-			shift; footerLegend="$1"; shift;;
+			shift; footerLegendText="$1"; shift;;
+	--footer-field)	shift; footerFieldNr="$1"; shift;;
 	--field-separator|-F)
 			shift; separator="${1:?}"; shift;;
 	--slots-per-day)
@@ -81,6 +92,8 @@ tally()
 {
     awk \
 	--field-separator "$separator" \
+	-v "graphFieldNr=$graphFieldNr" \
+	-v "footerFieldNr=$footerFieldNr" \
 	-v "dayFieldNr=$dayFieldNr" \
 	-v "hourFieldNr=$hourFieldNr" \
 	-v "slotNum=$slotNum" \
@@ -92,10 +105,16 @@ function render(v)
 {
     day = int($dayFieldNr)
 
+    if (graphFieldNr != "" && graphLegend == "") graphLegend = $graphFieldNr
+    if (footerFieldNr != "" && footerLegend == "") footerLegend = $footerFieldNr
+
     slot = int((day - 1) * slotNum + (slotNum > 1 ? $hourFieldNr * slotNum / 24 : 0))
     count[slot] += 1
 }
 END {
+    print graphLegend
+    print footerLegend
+
     if (slotNum >= 2) {
 	for (h = 1; h <= 31; ++h) {
 	    printf("%-" slotNum "." slotNum "s", h)
@@ -121,6 +140,10 @@ printDistribution()
 {
     # First line is the footer; following line is the distribution data to be
     # graphed.
+    local graphLegendFromData; IFS=$'\n' read -r graphLegendFromData
+    local graphLegend="${graphLegendFromData:-$graphLegendText}"
+    local footerLegendFromData; IFS=$'\n' read -r footerLegendFromData
+    local footerLegend="${footerLegendFromData:-$footerLegendText}"
     local footer; IFS=$'\n' read -r footer
     local data; IFS=$'\n' read -r data
 
