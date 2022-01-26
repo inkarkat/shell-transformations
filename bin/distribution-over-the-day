@@ -135,8 +135,8 @@ distributionWithFooter()
     local footer; IFS=$'\n' read -r footer
     local data; IFS=$'\n' read -r data
 
-    typeset -a surroundCommand=(surround -- "${borders[0]}" "${borders[1]}"); [ -z "${borders[*]:0:2}" ] && surroundCommand=()
-    printf '%s\n' "$data" | eval 'printDistribution' "${surroundCommand:+|}" '"${surroundCommand[@]}"'
+    local renderedDistribution; renderedDistribution="$(printf '%s\n' "$data" | printDistribution)"
+    printf '%s%s%s\n' "${borders[0]}" "$renderedDistribution" "${borders[1]}"
     printf '%s%s%s\n' "${borders[2]}" "$footer" "${borders[3]}"
 }
 
