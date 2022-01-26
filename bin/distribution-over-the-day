@@ -206,4 +206,4 @@ printDistribution()
     done
 }
 
-eval "${inputSource}${inputSource:+|}" tally | printDistribution
+tally | printDistribution
