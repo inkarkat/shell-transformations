@@ -97,23 +97,12 @@ tally()
 	-v "dayFieldNr=$dayFieldNr" \
 	-v "hourFieldNr=$hourFieldNr" \
 	-v "slotNum=$slotNum" \
+	-v "splitFieldNrList=${splitFieldNrs[*]//\\/\\\\}" \
 '
-function render(v)
+function printSection()
 {
-    return (v == "" ? " " : v)
-}
-{
-    day = int($dayFieldNr)
-
-    if (graphFieldNr != "" && graphLegend == "") graphLegend = $graphFieldNr
-    if (footerFieldNr != "" && footerLegend == "") footerLegend = $footerFieldNr
-
-    slot = int((day - 1) * slotNum + (slotNum > 1 ? $hourFieldNr * slotNum / 24 : 0))
-    count[slot] += 1
-}
-END {
-    print graphLegend
-    print footerLegend
+    print graphLegend; graphLegend = ""
+    print footerLegend; footerLegend = ""
 
     if (slotNum >= 2) {
 	for (h = 1; h <= 31; ++h) {
@@ -131,7 +120,23 @@ END {
     for (s = 1; s < 31 * slotNum; ++s) {
 	result = result "," render(count[s])
     }
-    print result
+    print result; delete count
+}
+function render(v)
+{
+    return (v == "" ? " " : v)
+}
+{
+    day = int($dayFieldNr)
+
+    if (graphFieldNr != "" && graphLegend == "") graphLegend = $graphFieldNr
+    if (footerFieldNr != "" && footerLegend == "") footerLegend = $footerFieldNr
+
+    slot = int((day - 1) * slotNum + (slotNum > 1 ? $hourFieldNr * slotNum / 24 : 0))
+    count[slot] += 1
+}
+END {
+    printSection()
 }
 '
 }

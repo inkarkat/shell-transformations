@@ -92,27 +92,10 @@ tally()
 	-v "lastHour=$lastHour" \
 	-v "slotNum=$slotNum" \
 '
-function render(v)
+function printSection()
 {
-    return (v == "" ? " " : v)
-}
-{
-    hour = int($1)
-    if (firstHour != "" && hour < firstHour) next
-    if (lastHour != "" && hour > lastHour) next
-
-    if (firstReportedHour == "" || firstReportedHour > hour) firstReportedHour = hour
-    if (lastReportedHour == "" || lastReportedHour < hour) lastReportedHour = hour
-
-    if (graphFieldNr != "" && graphLegend == "") graphLegend = $graphFieldNr
-    if (footerFieldNr != "" && footerLegend == "") footerLegend = $footerFieldNr
-
-    slot = int(hour * slotNum + $2 * slotNum / 60)
-    hourCount[slot] += 1
-}
-END {
-    print graphLegend
-    print footerLegend
+    print graphLegend; graphLegend = ""
+    print footerLegend; footerLegend = ""
 
     if (firstHour == "") firstHour = firstReportedHour
     if (lastHour == "") lastHour = lastReportedHour
@@ -137,7 +120,28 @@ END {
     for (s = firstSlot + 1; s <= lastSlot; ++s) {
 	result = result "," render(hourCount[s])
     }
-    print result
+    print result; delete hourCount
+}
+function render(v)
+{
+    return (v == "" ? " " : v)
+}
+{
+    hour = int($1)
+    if (firstHour != "" && hour < firstHour) next
+    if (lastHour != "" && hour > lastHour) next
+
+    if (firstReportedHour == "" || firstReportedHour > hour) firstReportedHour = hour
+    if (lastReportedHour == "" || lastReportedHour < hour) lastReportedHour = hour
+
+    if (graphFieldNr != "" && graphLegend == "") graphLegend = $graphFieldNr
+    if (footerFieldNr != "" && footerLegend == "") footerLegend = $footerFieldNr
+
+    slot = int(hour * slotNum + $2 * slotNum / 60)
+    hourCount[slot] += 1
+}
+END {
+    printSection()
 }
 '
 }
