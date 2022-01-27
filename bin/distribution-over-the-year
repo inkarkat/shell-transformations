@@ -113,10 +113,14 @@ BEGIN {
     splitFieldNrNum = split(splitFieldNrList, splitFieldNrs, "\n")
     split("Jan  ,Feb ,Mar ,Apr ,May  ,Jun ,Jul ,Aug  ,Sep ,Oct  ,Nov  ,Dec  ", monthLegend, /,/)
 }
-function printFooter(      footer, i)
+function printFooter(      footer, i, j)
 {
     for (i = 1; i <= 12; ++i) {
 	footer = footer monthLegend[i]
+	for (j = 2; j <= length(emptyCell); ++j) {
+	    # Need to stretch the footer if a cell is wider than one character.
+	    footer = footer gensub(/./, " ", "g", monthLegend[i])
+	}
     }
     print footer
 }
