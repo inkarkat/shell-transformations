@@ -111,7 +111,7 @@ tally()
 '
 BEGIN {
     splitFieldNrNum = split(splitFieldNrList, splitFieldNrs, "\n")
-    split("Jan  ,Feb ,Mar ,Apr ,May  ,Jun ,Jul ,Aug  ,Sep ,Oct  ,Nov  ,Dec  ", monthLegend, /,/)
+    split("Jan ,Feb ,Mar  ,Apr ,May  ,Jun ,Jul ,Aug  ,Sep ,Oct ,Nov  ,Dec    ", monthLegend, /,/)
 }
 function printFooter(      emptyCellWithoutAnsiEscapes, cellWidth, footer, i, j)
 {
