@@ -2,6 +2,13 @@
 
 : ${DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL= }
 : ${DISTRIBUTIONOVERTHEYEAR_BORDERS=⎡ ⎤ ⎢ ⎥ ⎣ ⎦}
+
+: ${DISTRIBUTIONOVERTHEYEAR_COLOR_BORDER=}  # for DISTRIBUTIONOVERTHEYEAR_BORDERS
+: ${DISTRIBUTIONOVERTHEYEAR_COLOR_LEGEND=}  # for the graph legend
+: ${DISTRIBUTIONOVERTHEYEAR_COLOR_FOOTER=}  # for the footer legend
+: ${DISTRIBUTIONOVERTHEYEAR_COLOR_UNITS=}   # for the weekdays left of the chart and the months at the bottom of the chart
+: ${DISTRIBUTIONOVERTHEYEAR_COLOR_RESET=}   # undo the coloring
+
 typeset -a borders=()
 [ -n "$DISTRIBUTIONOVERTHEYEAR_BORDERS" ] && IFS='' read -r -d '' -a borders <<<"${DISTRIBUTIONOVERTHEYEAR_BORDERS// /}"
 [ ${#borders[@]} -gt 0 ] && borders[-1]="${borders[-1]%$'\n'}"
@@ -221,18 +228,19 @@ printDistribution()
 	status=${renderedLines[-1]}; unset 'renderedLines[-1]'
 	[ -z "${renderedLines[-1]}" ] && unset 'renderedLines[-1]'
 
-	    printf "%${legendWidth}.${legendWidth}s%s%s%s\\n"  "${isFooter:+Mon}"	"${borders[0]}" "${renderedLines[0]}" "${borders[1]}"
-	    printf "%-${legendWidth}.${legendWidth}s%s%s%s\\n" ''			"${borders[2]}" "${renderedLines[1]}" "${borders[3]}"
-	    printf "%${legendWidth}.${legendWidth}s%s%s%s\\n"  "${isFooter:+Wed}"	"${borders[2]}" "${renderedLines[2]}" "${borders[3]}"
-	    printf "%-${legendWidth}.${legendWidth}s%s%s%s\\n" ''			"${borders[2]}" "${renderedLines[3]}" "${borders[3]}"
-	    printf "%${legendWidth}.${legendWidth}s%s%s%s\\n"  "${isFooter:+Fri}"	"${borders[2]}" "${renderedLines[4]}" "${borders[3]}"
+	local B="$DISTRIBUTIONOVERTHEYEAR_COLOR_BORDER" L="$DISTRIBUTIONOVERTHEYEAR_COLOR_LEGEND" F="$DISTRIBUTIONOVERTHEYEAR_COLOR_FOOTER" U="$DISTRIBUTIONOVERTHEYEAR_COLOR_UNITS" R="$DISTRIBUTIONOVERTHEYEAR_COLOR_RESET"
+	    printf "%s%${legendWidth}.${legendWidth}s%s%s%s%s\\n"  "$U" "${isFooter:+Mon}"	"$R" "${B}${borders[0]}${R}" "${renderedLines[0]}" "${B}${borders[1]}${R}"
+	    printf "%s%-${legendWidth}.${legendWidth}s%s%s%s%s\\n" "$U" ''			"$R" "${B}${borders[2]}${R}" "${renderedLines[1]}" "${B}${borders[3]}${R}"
+	    printf "%s%${legendWidth}.${legendWidth}s%s%s%s%s\\n"  "$U" "${isFooter:+Wed}"	"$R" "${B}${borders[2]}${R}" "${renderedLines[2]}" "${B}${borders[3]}${R}"
+	    printf "%s%-${legendWidth}.${legendWidth}s%s%s%s%s\\n" "$U" ''			"$R" "${B}${borders[2]}${R}" "${renderedLines[3]}" "${B}${borders[3]}${R}"
+	    printf "%s%${legendWidth}.${legendWidth}s%s%s%s%s\\n"  "$U" "${isFooter:+Fri}"	"$R" "${B}${borders[2]}${R}" "${renderedLines[4]}" "${B}${borders[3]}${R}"
 	if [ "$isFooter" ]; then
-	    printf "%${legendWidth}.${legendWidth}s%s%s%s\\n"  ''			"${borders[2]}" "${renderedLines[5]}" "${borders[3]}"
-	    printf "%${legendWidth}.${legendWidth}s%s%s%s\\n"  "$graphLegend"		"${borders[4]}" "${renderedLines[6]}" "${borders[5]}"
-	    printf "%-${legendWidth}.${legendWidth}s%s%s%s\\n" "$footerLegend"		"${borders[4]//?/ }" "$footer" "${borders[5]//?/ }"
+	    printf "%s%${legendWidth}.${legendWidth}s%s%s%s%s\\n"  "$U" ''			"$R" "${B}${borders[2]}${R}" "${renderedLines[5]}" "${B}${borders[3]}${R}"
+	    printf "%s%${legendWidth}.${legendWidth}s%s%s%s%s\\n"  "$L" "$graphLegend"		"$R" "${B}${borders[4]}${R}" "${renderedLines[6]}" "${B}${borders[5]}${R}"
+	    printf "%s%-${legendWidth}.${legendWidth}s%s%s%s%s\\n" "$F" "$footerLegend"		"$R" "${U}${borders[4]//?/ }" "$footer" "${borders[5]//?/ }${R}"
 	else
-	    printf "%${legendWidth}.${legendWidth}s%s%s%s\\n"  "$graphLegend"		"${borders[2]}" "${renderedLines[5]}" "${borders[3]}"
-	    printf "%-${legendWidth}.${legendWidth}s%s%s%s\\n" "$footerLegend"		"${borders[4]}" "${renderedLines[6]}" "${borders[5]}"
+	    printf "%s%${legendWidth}.${legendWidth}s%s%s%s%s\\n"  "$L" "$graphLegend"		"$R" "${B}${borders[2]}${R}" "${renderedLines[5]}" "${B}${borders[3]}${R}"
+	    printf "%s%-${legendWidth}.${legendWidth}s%s%s%s%s\\n" "$F" "$footerLegend"		"$R" "${B}${borders[4]}${R}" "${renderedLines[6]}" "${B}${borders[5]}${R}"
 	fi
     done
     return $status

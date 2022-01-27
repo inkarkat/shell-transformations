@@ -1,5 +1,11 @@
 #!/bin/bash
 
+: ${DISTRIBUTIONOVERTHEMONTH_COLOR_BORDER=}  # for DISTRIBUTIONOVERTHEMONTH_BORDERS
+: ${DISTRIBUTIONOVERTHEMONTH_COLOR_LEGEND=}  # for the graph legend
+: ${DISTRIBUTIONOVERTHEMONTH_COLOR_FOOTER=}  # for the footer legend
+: ${DISTRIBUTIONOVERTHEMONTH_COLOR_UNITS=}   # for the days at the bottom of the chart
+: ${DISTRIBUTIONOVERTHEMONTH_COLOR_RESET=}   # undo the coloring
+
 : ${DISTRIBUTIONOVERTHEMONTH_BORDERS=⎡ ⎤ ⎣ ⎦}
 typeset -a borders=()
 [ -n "$DISTRIBUTIONOVERTHEMONTH_BORDERS" ] && IFS='' read -r -d '' -a borders <<<"${DISTRIBUTIONOVERTHEMONTH_BORDERS// /}"
@@ -185,17 +191,18 @@ printDistribution()
 
 	local legendWidth=$DISTRIBUTIONOVERTHEMONTH_LEGEND_LENGTH
 
+	local B="$DISTRIBUTIONOVERTHEMONTH_COLOR_BORDER" L="$DISTRIBUTIONOVERTHEMONTH_COLOR_LEGEND" F="$DISTRIBUTIONOVERTHEMONTH_COLOR_FOOTER" U="$DISTRIBUTIONOVERTHEMONTH_COLOR_UNITS" R="$DISTRIBUTIONOVERTHEMONTH_COLOR_RESET"
 	if [ "$isFooter" ]; then
 	    if [ -z "$legendWidth" ]; then
 		legendWidth=$((${#graphLegend} > ${#footerLegend} ? ${#graphLegend} : ${#footerLegend}))
 		[ -n "${borders[0]}" ] || let legendWidth+=1
 	    fi
 
-	    printf "%-${legendWidth}.${legendWidth}s%s%s%s\\n" "$graphLegend" "${borders[0]}" "$renderedDistribution" "${borders[1]}"
-	    printf "%-${legendWidth}.${legendWidth}s%s%s%s\\n" "$footerLegend" "${borders[2]}" "$footer" "${borders[3]}"
+	    printf "%s%-${legendWidth}.${legendWidth}s%s%s%s%s\\n" "$L" "$graphLegend" "$R" "${B}${borders[0]}${R}" "$renderedDistribution" "${B}${borders[1]}${R}"
+	    printf "%s%-${legendWidth}.${legendWidth}s%s%s%s%s\\n" "$F" "$footerLegend" "$R" "${B}${borders[2]}${R}" "${U}${footer}${R}" "${B}${borders[3]}${R}"
 	else
 	    local completeLegend="$graphLegend"; [ -n "$graphLegend" -a -n "$footerLegend" ] && completeLegend="${completeLegend} "; completeLegend="${completeLegend}${footerLegend}"
-	    printf "%${legendWidth:+-}${legendWidth}${legendWidth:+.}${legendWidth}s%s\\n" "$completeLegend" "$renderedDistribution"
+	    printf "%s%${legendWidth:+-}${legendWidth}${legendWidth:+.}${legendWidth}s%s%s\\n" "$L" "$completeLegend" "$R" "$renderedDistribution"
 	fi
     done
 }
