@@ -1,12 +1,14 @@
 #!/bin/bash
 
+: ${DISTRIBUTIONOVERTHEMONTH_EMPTY_CELL= }
+: ${DISTRIBUTIONOVERTHEMONTH_BORDERS=⎡ ⎤ ⎣ ⎦}
+
 : ${DISTRIBUTIONOVERTHEMONTH_COLOR_BORDER=}  # for DISTRIBUTIONOVERTHEMONTH_BORDERS
 : ${DISTRIBUTIONOVERTHEMONTH_COLOR_LEGEND=}  # for the graph legend
 : ${DISTRIBUTIONOVERTHEMONTH_COLOR_FOOTER=}  # for the footer legend
 : ${DISTRIBUTIONOVERTHEMONTH_COLOR_UNITS=}   # for the days at the bottom of the chart
 : ${DISTRIBUTIONOVERTHEMONTH_COLOR_RESET=}   # undo the coloring
 
-: ${DISTRIBUTIONOVERTHEMONTH_BORDERS=⎡ ⎤ ⎣ ⎦}
 typeset -a borders=()
 [ -n "$DISTRIBUTIONOVERTHEMONTH_BORDERS" ] && IFS='' read -r -d '' -a borders <<<"${DISTRIBUTIONOVERTHEMONTH_BORDERS// /}"
 [ ${#borders[@]} -gt 0 ] && borders[-1]="${borders[-1]%$'\n'}"
@@ -15,7 +17,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| [DISTRIBUTIONOVERTHEMONTH_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEMONTH_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [-F|--field-separator FS] [--day-field N] [--slots-per-day N [--hour-field M]] [--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| [DISTRIBUTIONOVERTHEMONTH_EMPTY_CELL='-'] [DISTRIBUTIONOVERTHEMONTH_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEMONTH_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [-F|--field-separator FS] [--day-field N] [--slots-per-day N [--hour-field M]] [--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -111,7 +113,7 @@ do
 				DISTRIBUTIONOVERTHEMONTH_COLOR_BORDER='[38;5;241m'
 				DISTRIBUTIONOVERTHEMONTH_COLOR_UNITS='[38;5;241m'
 				DISTRIBUTIONOVERTHEMONTH_COLOR_RESET='[0m'
-				DISTRIBUTIONOVERTHEMONTH_EMPTY_CELL='[38;5;253m🭽[0m'
+				DISTRIBUTIONOVERTHEMONTH_EMPTY_CELL=' '
 				;;
 			    green-large-calendar)
 				sparkArgs+=(green-double-center-squares)
@@ -119,7 +121,7 @@ do
 				DISTRIBUTIONOVERTHEMONTH_COLOR_BORDER='[38;5;241m'
 				DISTRIBUTIONOVERTHEMONTH_COLOR_UNITS='[38;5;241m'
 				DISTRIBUTIONOVERTHEMONTH_COLOR_RESET='[0m'
-				DISTRIBUTIONOVERTHEMONTH_EMPTY_CELL='[38;5;253m🭽▔[0m'
+				DISTRIBUTIONOVERTHEMONTH_EMPTY_CELL='  '
 				;;
 			    *)	sparkArgs+=("$1");;
 			esac
@@ -141,18 +143,23 @@ tally()
 	-v "hourFieldNr=$hourFieldNr" \
 	-v "slotNum=$slotNum" \
 	-v "splitFieldNrList=${splitFieldNrs[*]//\\/\\\\}" \
+	-v "emptyCell=${DISTRIBUTIONOVERTHEMONTH_EMPTY_CELL//\\/\\\\}" \
 '
 BEGIN {
     splitFieldNrNum = split(splitFieldNrList, splitFieldNrs, "\n")
+
+    emptyCellWithoutAnsiEscapes = gensub(/\x1b\[[0-9:;]*[mK]/, "", "g", emptyCell)
+    cellWidth = (emptyCellWithoutAnsiEscapes == "　" ? 2 : length(emptyCellWithoutAnsiEscapes)) # Rudimentary handling of fullwidth characters (just U+3000 IDEOGRAPHIC SPACE).
 }
-function printSection(      h, result, s)
+function printSection(      dayWidth, h, result, s)
 {
     print graphLegend; graphLegend = ""
     print footerLegend; footerLegend = ""
 
-    if (slotNum >= 2) {
+    dayWidth = slotNum * cellWidth
+    if (dayWidth >= 2) {
 	for (h = 1; h <= 31; ++h) {
-	    printf("%-" slotNum "." slotNum "s", h)
+	    printf("%-" dayWidth "." dayWidth "s", h)
 	}
     } else {
 	for (h = 1; h < 31; h += 3) {
@@ -170,7 +177,7 @@ function printSection(      h, result, s)
 }
 function render(v)
 {
-    return (v == "" ? " " : v)
+    return (v == "" ? emptyCell : v)
 }
 {
     for (i in splitFieldNrs) {
@@ -216,7 +223,8 @@ printDistribution()
 	local footer; IFS=$'\n' read -r footer || break
 	local data; IFS=$'\n' read -r data || break
 
-	local renderedDistribution; renderedDistribution="$(spark --min 0 "${sparkArgs[@]}" "$data")"
+	local sparkEmptyOverride; [ -n "${SPARK_EMPTY+t}" ] || sparkEmptyOverride='SPARK_EMPTY="$DISTRIBUTIONOVERTHEMONTH_EMPTY_CELL"'
+	local renderedDistribution; renderedDistribution="$(eval "$sparkEmptyOverride" 'spark --min 0 "${sparkArgs[@]}" "$data"')"
 
 	local legendWidth=$DISTRIBUTIONOVERTHEMONTH_LEGEND_LENGTH
 
