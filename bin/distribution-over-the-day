@@ -15,7 +15,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '11:01\\\\n11:30\\\\n12:00\\\\n...'| [DISTRIBUTIONOVERTHEDAY_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEDAY_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [-F|--field-separator FS] [--hour-field N] [--minute-field M] [--first-hour HH] [--last-hour HH] [--slots-per-hour N] [--split-graph-field N [--split-graph-field ...]] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '11:01\\\\n11:30\\\\n12:00\\\\n...'| [DISTRIBUTIONOVERTHEDAY_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEDAY_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [-F|--field-separator FS] [--hour-field N] [--minute-field M] [--first-hour HH] [--last-hour HH] [--slots-per-hour N] [--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -66,6 +66,7 @@ HELPDESCRIPTION
 			a new graph. If you want to graph every day separately,
 			pass the day (and month and year if data may have large
 			gaps in between) columns here. HELPTEXT
+    --as NAME-calendar	Special out-of-the-box spark style customizations.
 HELPTEXT
 }
 
@@ -103,6 +104,34 @@ do
 			shift; slotNum="$1"; shift;;
 	--split-graph-field)
 			shift; splitFieldNrs+=("$1"); shift;;
+	--as)		sparkArgs+=("$1"); shift
+			case "$1" in
+			    colorbox-calendar)
+				sparkArgs+=(color-fullwidth-boxes)
+				DISTRIBUTIONOVERTHEDAY_EMPTY_CELL='  '
+				export SPARK_EMPTY_DATA='  '
+				export SPARK_EMPTY=''
+				;;
+			    green-calendar)
+				sparkArgs+=(green-center-boxes)
+				DISTRIBUTIONOVERTHEDAY_COLOR_LEGEND='[01m'
+				DISTRIBUTIONOVERTHEDAY_COLOR_BORDER='[38;5;241m'
+				DISTRIBUTIONOVERTHEDAY_COLOR_UNITS='[38;5;241m'
+				DISTRIBUTIONOVERTHEDAY_COLOR_RESET='[0m'
+				DISTRIBUTIONOVERTHEDAY_EMPTY_CELL='[38;5;253m🭽[0m'
+				;;
+			    green-large-calendar)
+				sparkArgs+=(green-double-center-squares)
+				DISTRIBUTIONOVERTHEDAY_COLOR_LEGEND='[01m'
+				DISTRIBUTIONOVERTHEDAY_COLOR_BORDER='[38;5;241m'
+				DISTRIBUTIONOVERTHEDAY_COLOR_UNITS='[38;5;241m'
+				DISTRIBUTIONOVERTHEDAY_COLOR_RESET='[0m'
+				DISTRIBUTIONOVERTHEDAY_EMPTY_CELL='[38;5;253m🭽▔[0m'
+				;;
+			    *)	sparkArgs+=("$1");;
+			esac
+			shift
+			;;
 	--)		sparkArgs+=("$1"); shift; break;;
 	*)		sparkArgs+=("$1"); shift;;
     esac
