@@ -138,6 +138,10 @@ do
 	*)		sparkArgs+=("$1"); shift;;
     esac
 done
+if [ $hourFieldNr -eq $minuteFieldNr ]; then
+    echo >&2 'ERROR: Minute field cannot be equal to hour field.'
+    exit 2
+fi
 
 IFS=$'\n'
 tally()

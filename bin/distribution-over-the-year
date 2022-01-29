@@ -130,6 +130,16 @@ do
 	*)		sparkArgs+=("$1"); shift;;
     esac
 done
+if [ $yearFieldNr -eq $monthFieldNr ]; then
+    echo >&2 'ERROR: Month field cannot be equal to year field.'
+    exit 2
+elif [ $monthFieldNr -eq $dayFieldNr ]; then
+    echo >&2 'ERROR: Day field cannot be equal to month field.'
+    exit 2
+elif [ $yearFieldNr -eq $dayFieldNr ]; then
+    echo >&2 'ERROR: Day field cannot be equal to year field.'
+    exit 2
+fi
 
 IFS=$'\n'
 tally()

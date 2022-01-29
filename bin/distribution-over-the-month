@@ -131,6 +131,10 @@ do
 	*)		sparkArgs+=("$1"); shift;;
     esac
 done
+if [ $dayFieldNr -eq $hourFieldNr ]; then
+    echo >&2 'ERROR: Hour field cannot be equal to day field.'
+    exit 2
+fi
 
 IFS=$'\n'
 tally()
