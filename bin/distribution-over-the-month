@@ -157,6 +157,8 @@ BEGIN {
 }
 function printSection(      dayWidth, h, result, s)
 {
+    if (length(count) == 0) return
+
     print graphLegend; graphLegend = ""
     print footerLegend; footerLegend = ""
 
@@ -213,6 +215,7 @@ END {
 
 printDistribution()
 {
+    local status=99
     while :
     do
 	# Each section consists of 4 lines:
@@ -228,7 +231,7 @@ printDistribution()
 	local data; IFS=$'\n' read -r data || break
 
 	local sparkEmptyOverride; [ -n "${SPARK_EMPTY+t}" ] || sparkEmptyOverride='SPARK_EMPTY="$DISTRIBUTIONOVERTHEMONTH_EMPTY_CELL"'
-	local renderedDistribution; renderedDistribution="$(eval "$sparkEmptyOverride" 'spark --min 0 "${sparkArgs[@]}" "$data"')"
+	local renderedDistribution; renderedDistribution="$(eval "$sparkEmptyOverride" 'spark --min 0 "${sparkArgs[@]}" "$data"')" && status=0 || exit $?
 
 	local legendWidth=$DISTRIBUTIONOVERTHEMONTH_LEGEND_LENGTH
 
