@@ -249,6 +249,7 @@ printDistribution()
 	    printf "%s%${legendWidth:+-}${legendWidth}${legendWidth:+.}${legendWidth}s%s%s\\n" "$L" "$completeLegend" "$R" "$renderedDistribution"
 	fi
     done
+    return $status
 }
 
 tally | printDistribution
