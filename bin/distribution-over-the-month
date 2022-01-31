@@ -17,7 +17,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| [DISTRIBUTIONOVERTHEMONTH_EMPTY_CELL='-'] [DISTRIBUTIONOVERTHEMONTH_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEMONTH_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer|--final-footer-only] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [-F|--field-separator FS] [--day-field N] [--slots-per-day N [--hour-field M]] [--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| [DISTRIBUTIONOVERTHEMONTH_EMPTY_CELL='-'] [DISTRIBUTIONOVERTHEMONTH_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEMONTH_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer|--final-footer-only|--footer-only-on-change] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [-F|--field-separator FS] [--day-field N] [--slots-per-day N [--hour-field M]] [--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -42,6 +42,10 @@ HELPDESCRIPTION
     cat <<HELPTEXT
     --no-footer		Omit the footer that shows the hours.
     --final-footer-only	Omit the footer on all graphs but the very last.
+    --footer-only-on-change
+			Only print a footer if it changed vs. the previous one.
+			The text captured by --footer-field is not considered
+			here.
     --graph-legend TEXT	Add TEXT in front of the distribution. This will also be
 			the fallback text if no field value is found.
     --graph-field N	Add text captured from the first non-empty column N of
@@ -81,6 +85,7 @@ hourFieldNr=4
 isFooter=t
 finalFooter=
 typeset -a footerCapture=()
+isFooterOnlyOnChange=
 slotNum=1
 typeset -a splitFieldNrs=()
 typeset -a sparkArgs=()
@@ -91,6 +96,8 @@ do
 	--no-footer)	shift; isFooter=;;
 	--final-footer-only)
 			shift; footerCapture=(-v finalFooter);;
+	--footer-only-on-change)
+			shift; footerCapture=(-v finalFooter); isFooterOnlyOnChange=t;;
 	--graph-legend)	shift; graphLegendText="$1"; shift;;
 	--graph-field)	shift; graphFieldNr="$1"; shift;;
 	--footer-legend)
@@ -220,7 +227,8 @@ END {
 
 printDistribution()
 {
-    local status=99
+    unset previousFooter
+    local status=99 footer
     while :
     do
 	# Each section consists of 4 lines:
@@ -232,7 +240,7 @@ printDistribution()
 	local graphLegend="${graphLegendFromData:-$graphLegendText}"
 	local footerLegendFromData; IFS=$'\n' read -r footerLegendFromData || break
 	local footerLegend="${footerLegendFromData:-$footerLegendText}"
-	local footer; IFS=$'\n' read -r footer || break
+	IFS=$'\n' read -r footer || break
 	local data; IFS=$'\n' read -r data || break
 
 	local sparkEmptyOverride; [ -n "${SPARK_EMPTY+t}" ] || sparkEmptyOverride='SPARK_EMPTY="$DISTRIBUTIONOVERTHEMONTH_EMPTY_CELL"'
@@ -245,6 +253,12 @@ printDistribution()
 	    if [ -z "$legendWidth" ]; then
 		legendWidth=$((${#graphLegend} > ${#footerLegend} ? ${#graphLegend} : ${#footerLegend}))
 		[ -n "${borders[0]}" ] || let legendWidth+=1
+	    fi
+
+	    if [ "$isFooterOnlyOnChange" ]; then
+		[ -n "${previousFooter+t}" -a "$previousFooter" != "$footer" ] &&
+		    printf %s "$finalFooter"
+		previousFooter="$footer"
 	    fi
 
 	    printf "%s%-${legendWidth}.${legendWidth}s%s%s%s%s\\n" "$L" "$graphLegend" "$R" "${B}${borders[0]}${R}" "$renderedDistribution" "${B}${borders[1]}${R}"
