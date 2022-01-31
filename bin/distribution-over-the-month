@@ -17,7 +17,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| [DISTRIBUTIONOVERTHEMONTH_EMPTY_CELL='-'] [DISTRIBUTIONOVERTHEMONTH_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEMONTH_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer|--final-footer-only|--footer-only-on-change] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [-F|--field-separator FS] [--day-field N] [--slots-per-day N [--hour-field M]] [--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| [DISTRIBUTIONOVERTHEMONTH_EMPTY_CELL='-'] [DISTRIBUTIONOVERTHEMONTH_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEMONTH_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer|--final-footer-only|--footer-only-on-change|--footer-every N] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [-F|--field-separator FS] [--day-field N] [--slots-per-day N [--hour-field M]] [--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -46,6 +46,8 @@ HELPDESCRIPTION
 			Only print a footer if it changed vs. the previous one.
 			The text captured by --footer-field is not considered
 			here.
+    --footer-every N	Print the footer on every N'th graph. Can be combined
+			with --footer-only-on-change.
     --graph-legend TEXT	Add TEXT in front of the distribution. This will also be
 			the fallback text if no field value is found.
     --graph-field N	Add text captured from the first non-empty column N of
@@ -86,6 +88,7 @@ isFooter=t
 finalFooter=
 typeset -a footerCapture=()
 isFooterOnlyOnChange=
+footerEvery=
 slotNum=1
 typeset -a splitFieldNrs=()
 typeset -a sparkArgs=()
@@ -98,6 +101,7 @@ do
 			shift; footerCapture=(-v finalFooter);;
 	--footer-only-on-change)
 			shift; footerCapture=(-v finalFooter); isFooterOnlyOnChange=t;;
+	--footer-every)	shift; footerEvery="${1:?}"; shift; footerCapture=(-v finalFooter);;
 	--graph-legend)	shift; graphLegendText="$1"; shift;;
 	--graph-field)	shift; graphFieldNr="$1"; shift;;
 	--footer-legend)
@@ -228,7 +232,7 @@ END {
 printDistribution()
 {
     unset previousFooter
-    local status=99 footer
+    local status=99 footer footerCount=0
     while :
     do
 	# Each section consists of 4 lines:
@@ -256,14 +260,22 @@ printDistribution()
 	    fi
 
 	    if [ "$isFooterOnlyOnChange" ]; then
-		[ -n "${previousFooter+t}" -a "$previousFooter" != "$footer" ] &&
+		if [ -n "${previousFooter+t}" -a "$previousFooter" != "$footer" ]; then
 		    printf %s "$finalFooter"
+		    finalFooter=
+		    footerCount=0
+		fi
 		previousFooter="$footer"
+	    fi
+	    if [ -n "$footerEvery" ] && [ $((footerCount % footerEvery)) -eq 0 ]; then
+		printf %s "$finalFooter"
 	    fi
 
 	    printf "%s%-${legendWidth}.${legendWidth}s%s%s%s%s\\n" "$L" "$graphLegend" "$R" "${B}${borders[0]}${R}" "$renderedDistribution" "${B}${borders[1]}${R}"
 	    printf "${footerCapture[@]}" \
 		   "%s%-${legendWidth}.${legendWidth}s%s%s%s%s\\n" "$F" "$footerLegend" "$R" "${B}${borders[2]}${R}" "${U}${footer}${R}" "${B}${borders[3]}${R}"
+
+	    let footerCount+=1
 	else
 	    local completeLegend="$graphLegend"; [ -n "$graphLegend" -a -n "$footerLegend" ] && completeLegend="${completeLegend} "; completeLegend="${completeLegend}${footerLegend}"
 	    printf "%s%${legendWidth:+-}${legendWidth}${legendWidth:+.}${legendWidth}s%s%s\\n" "$L" "$completeLegend" "$R" "$renderedDistribution"
