@@ -166,6 +166,8 @@ BEGIN {
 }
 function printSection(      firstGraphedHour, lastGraphedHour, firstSlot, lastSlot, h, remainingLen, result, s)
 {
+    if (length(count) == 0) return
+
     print graphLegend; graphLegend = ""
     print footerLegend; footerLegend = ""
 
@@ -189,11 +191,11 @@ function printSection(      firstGraphedHour, lastGraphedHour, firstSlot, lastSl
     }
     printf "\n"
 
-    result = render(hourCount[firstSlot])
+    result = render(count[firstSlot])
     for (s = firstSlot + 1; s <= lastSlot; ++s) {
-	result = result "," render(hourCount[s])
+	result = result "," render(count[s])
     }
-    print result; delete hourCount
+    print result; delete count
 }
 function render(v)
 {
@@ -226,7 +228,7 @@ function render(v)
     if (lastReportedHour == "" || lastReportedHour < hour) lastReportedHour = hour
 
     slot = int(hour * slotNum + int($minuteFieldNr) * slotNum / 60)
-    hourCount[slot] += 1
+    count[slot] += 1
 }
 END {
     printSection()
@@ -236,6 +238,7 @@ END {
 
 printDistribution()
 {
+    local status=99
     while :
     do
 	# Each section consists of 4 lines:
@@ -251,7 +254,7 @@ printDistribution()
 	local data; IFS=$'\n' read -r data || break
 
 	local sparkEmptyOverride; [ -n "${SPARK_EMPTY+t}" ] || sparkEmptyOverride='SPARK_EMPTY="$DISTRIBUTIONOVERTHEDAY_EMPTY_CELL"'
-	local renderedDistribution; renderedDistribution="$(eval "$sparkEmptyOverride" 'spark --min 0 "${sparkArgs[@]}" "$data"')"
+	local renderedDistribution; renderedDistribution="$(eval "$sparkEmptyOverride" 'spark --min 0 "${sparkArgs[@]}" "$data"')" && status=0 || exit $?
 
 	local legendWidth=$DISTRIBUTIONOVERTHEDAY_LEGEND_LENGTH
 
