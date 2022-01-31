@@ -17,7 +17,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '11:01\\\\n11:30\\\\n12:00\\\\n...'| [DISTRIBUTIONOVERTHEDAY_EMPTY_CELL='-'] [DISTRIBUTIONOVERTHEDAY_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEDAY_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [-F|--field-separator FS] [--hour-field N] [--minute-field M] [--first-hour HH] [--last-hour HH] [--slots-per-hour N] [--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '11:01\\\\n11:30\\\\n12:00\\\\n...'| [DISTRIBUTIONOVERTHEDAY_EMPTY_CELL='-'] [DISTRIBUTIONOVERTHEDAY_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEDAY_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer|--final-footer-only] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [-F|--field-separator FS] [--hour-field N] [--minute-field M] [--first-hour HH] [--last-hour HH] [--slots-per-hour N] [--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -41,6 +41,7 @@ HELPDESCRIPTION
     echo
     cat <<HELPTEXT
     --no-footer		Omit the footer that shows the hours.
+    --final-footer-only	Omit the footer on all graphs but the very last.
     --graph-legend TEXT	Add TEXT in front of the distribution. This will also be
 			the fallback text if no field value is found.
     --graph-field N	Add text captured from the first non-empty column N of
@@ -83,6 +84,8 @@ minuteFieldNr=2
 firstHour=
 lastHour=
 isFooter=t
+finalFooter=
+typeset -a footerCapture=()
 slotNum=4
 typeset -a splitFieldNrs=()
 typeset -a sparkArgs=()
@@ -91,6 +94,8 @@ do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
 	--no-footer)	shift; isFooter=;;
+	--final-footer-only)
+			shift; footerCapture=(-v finalFooter);;
 	--graph-legend)	shift; graphLegendText="$1"; shift;;
 	--graph-field)	shift; graphFieldNr="$1"; shift;;
 	--footer-legend)
@@ -266,12 +271,15 @@ printDistribution()
 	    fi
 
 	    printf "%s%-${legendWidth}.${legendWidth}s%s%s%s%s\\n" "$L" "$graphLegend" "$R" "${B}${borders[0]}${R}" "$renderedDistribution" "${B}${borders[1]}${R}"
-	    printf "%s%-${legendWidth}.${legendWidth}s%s%s%s%s\\n" "$F" "$footerLegend" "$R" "${B}${borders[2]}${R}" "${U}${footer}${R}" "${B}${borders[3]}${R}"
+	    printf "${footerCapture[@]}" \
+		   "%s%-${legendWidth}.${legendWidth}s%s%s%s%s\\n" "$F" "$footerLegend" "$R" "${B}${borders[2]}${R}" "${U}${footer}${R}" "${B}${borders[3]}${R}"
 	else
 	    local completeLegend="$graphLegend"; [ -n "$graphLegend" -a -n "$footerLegend" ] && completeLegend="${completeLegend} "; completeLegend="${completeLegend}${footerLegend}"
 	    printf "%s%${legendWidth:+-}${legendWidth}${legendWidth:+.}${legendWidth}s%s%s\\n" "$L" "$completeLegend" "$R" "$renderedDistribution"
 	fi
     done
+
+    [ -z "$finalFooter" ] || printf %s "$finalFooter"
     return $status
 }
 
