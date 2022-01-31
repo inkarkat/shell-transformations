@@ -191,11 +191,11 @@ function printSection(      firstGraphedHour, lastGraphedHour, firstSlot, lastSl
     }
     printf "\n"
 
-    result = render(hourCount[firstSlot])
+    result = render(count[firstSlot])
     for (s = firstSlot + 1; s <= lastSlot; ++s) {
-	result = result "," render(hourCount[s])
+	result = result "," render(count[s])
     }
-    print result; delete hourCount
+    print result; delete count
 }
 function render(v)
 {
@@ -228,7 +228,7 @@ function render(v)
     if (lastReportedHour == "" || lastReportedHour < hour) lastReportedHour = hour
 
     slot = int(hour * slotNum + int($minuteFieldNr) * slotNum / 60)
-    hourCount[slot] += 1
+    count[slot] += 1
 }
 END {
     printSection()
