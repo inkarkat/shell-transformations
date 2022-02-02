@@ -17,7 +17,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| [DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL='-'] [DISTRIBUTIONOVERTHEYEAR_BORDERS='/ \ ( ) L J'] [DISTRIBUTIONOVERTHEYEAR_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer|--final-footer-only|--footer-only-on-change|--footer-every N] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [-F|--field-separator FS] [--year YYYY |--year-field Y] [--month-field M] [--day-field D] [--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| [DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL='-'] [DISTRIBUTIONOVERTHEYEAR_BORDERS='/ \ ( ) L J'] [DISTRIBUTIONOVERTHEYEAR_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer|--final-footer-only|--footer-only-on-change|--footer-every N] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [-F|--field-separator FS] [--weekly] [--year YYYY |--year-field Y] [--month-field M] [--day-field D] [--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -62,6 +62,7 @@ HELPDESCRIPTION
     --field-separator|-F FS
 			Use FS for splitting the data into columns (instead of
 			the default whitespace + [:_/-]).
+    --weekly		Aggregate entire weeks instead of individual days.
     --year YYYY		Assume a static year YYYY.
     --year-field Y	Take the year from column Y instead of 1.
     --month-field M	Take the month of the year from column M instead of 2.
@@ -80,6 +81,7 @@ graphFieldNr=
 footerLegendText=
 footerFieldNr=
 separator='[[:space:]:_/-]'
+isWeekly=
 year=
 yearFieldNr=1
 monthFieldNr=2
@@ -108,6 +110,7 @@ do
 	--footer-field)	shift; footerFieldNr="$1"; shift;;
 	--field-separator|-F)
 			shift; separator="${1:?}"; shift;;
+	--weekly)	shift; isWeekly=t;;
 	--year)		shift; year="${1:?}"; shift;;
 	--year-field)  shift; yearFieldNr="${1:?}"; shift;;
 	--month-field)  shift; monthFieldNr="${1:?}"; shift;;
@@ -128,7 +131,9 @@ do
 				DISTRIBUTIONOVERTHEYEAR_COLOR_BORDER='[38;5;241m'
 				DISTRIBUTIONOVERTHEYEAR_COLOR_UNITS='[38;5;241m'
 				DISTRIBUTIONOVERTHEYEAR_COLOR_RESET='[0m'
-				DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL='[38;5;253m🭽[0m'
+				[ "$isWeekly" ] && \
+				    DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL=' ' || \
+				    DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL='[38;5;253m🭽[0m'
 				;;
 			    green-large-calendar)
 				sparkArgs+=(green-double-center-squares)
@@ -136,7 +141,9 @@ do
 				DISTRIBUTIONOVERTHEYEAR_COLOR_BORDER='[38;5;241m'
 				DISTRIBUTIONOVERTHEYEAR_COLOR_UNITS='[38;5;241m'
 				DISTRIBUTIONOVERTHEYEAR_COLOR_RESET='[0m'
-				DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL='[38;5;253m🭽▔[0m'
+				[ "$isWeekly" ] && \
+				    DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL='  ' || \
+				    DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL='[38;5;253m🭽▔[0m'
 				;;
 			    *)	sparkArgs+=("$1");;
 			esac
@@ -162,6 +169,7 @@ tally()
 {
     awk \
 	--field-separator "$separator" \
+	-v "isWeekly=$isWeekly" \
 	-v "graphFieldNr=$graphFieldNr" \
 	-v "footerFieldNr=$footerFieldNr" \
 	-v "year=$year" \
@@ -173,10 +181,17 @@ tally()
 '
 BEGIN {
     splitFieldNrNum = split(splitFieldNrList, splitFieldNrs, "\n")
-    split("Jan ,Feb ,Mar  ,Apr ,May  ,Jun ,Jul ,Aug  ,Sep ,Oct ,Nov  ,Dec    ", monthLegend, /,/)
+    if (isWeekly) {
+	split(" Jan ,Feb ,Mar  ,Apr ,May ,Jun  ,Jul ,Aug ,Sep  ,Oct ,Nov ,Dec   ", monthLegend, /,/)
+    } else {
+	split("Jan ,Feb ,Mar  ,Apr ,May  ,Jun ,Jul ,Aug  ,Sep ,Oct ,Nov  ,Dec   ", monthLegend, /,/)
+    }
 
     emptyCellWithoutAnsiEscapes = gensub(/\x1b\[[0-9:;]*[mK]/, "", "g", emptyCell)
     cellWidth = (emptyCellWithoutAnsiEscapes == "　" ? 2 : length(emptyCellWithoutAnsiEscapes)) # Rudimentary handling of fullwidth characters (just U+3000 IDEOGRAPHIC SPACE).
+
+    WEEK_OF_YEAR_FORMAT = ENVIRON["DISTRIBUTIONOVERTHEYEAR_WEEK_OF_YEAR_FORMAT"]
+    if (WEEK_OF_YEAR_FORMAT == "") WEEK_OF_YEAR_FORMAT="%W"
 }
 function printFooter(      footer, i, j)
 {
@@ -189,7 +204,25 @@ function printFooter(      footer, i, j)
     }
     print footer
 }
-function printSection(      h, result, d, s)
+function printDailySection(      d, result, s)
+{
+    for (d = 0; d < 7; ++d) {
+	result = ""
+	for (s = 1; s < 366 + 7; s += 7) {
+	    result = result (s == 1 ? "" : ",") render(count[s + d])
+	}
+	print result
+    }
+}
+function printWeeklySection(      w, result)
+{
+    result = render(count[0])
+    for (w = 1; w <= 53 ; ++w) {
+	result = result "," render(count[w])
+    }
+    print result
+}
+function printSection()
 {
     if (length(count) == 0) return
 
@@ -197,13 +230,10 @@ function printSection(      h, result, d, s)
     print footerLegend; footerLegend = ""
 
     printFooter()
-
-    for (d = 0; d < 7; ++d) {
-	result = ""
-	for (s = 1; s < 366 + 7; s += 7) {
-	    result = result (s == 1 ? "" : ",") render(count[s + d])
-	}
-	print result
+    if (isWeekly) {
+	printWeeklySection()
+    } else {
+	printDailySection()
     }
     delete count
 }
@@ -237,11 +267,15 @@ function render(v)
 	next
     }
 
-    dayOfYear = int(strftime("%j", epoch))
-    firstDayEpoch = mktime(thisYear " 01 01 12 00 00")
-    dayOfWeekOffset = int(strftime("%u", firstDayEpoch)) - 1 # Map the same weekday of different years to the same slot; it is less important if something happened Apr-1 or Apr-3, but rather whether it happened on the first Monday of April.
+    if (isWeekly) {
+	slot = int(strftime(WEEK_OF_YEAR_FORMAT, epoch))
+    } else {
+	dayOfYear = int(strftime("%j", epoch))
+	firstDayEpoch = mktime(thisYear " 01 01 12 00 00")
+	dayOfWeekOffset = int(strftime("%u", firstDayEpoch)) - 1 # Map the same weekday of different years to the same slot; it is less important if something happened Apr-1 or Apr-3, but rather whether it happened on the first Monday of April.
 
-    slot = dayOfYear + dayOfWeekOffset
+	slot = dayOfYear + dayOfWeekOffset
+    }
     count[slot] += 1
 }
 END {
@@ -250,13 +284,13 @@ END {
 '
 }
 
-printDistribution()
+printDailyDistribution()
 {
     unset previousFooter
     local status=99 footer footerCount=0
     while :
     do
-	# Each section consists of 4 lines:
+	# Each section consists of 10 lines:
 	# - legend for graph
 	# - legend for footer
 	# - footer
@@ -327,5 +361,66 @@ printDistribution()
     [ -z "$finalFooter" ] || printf %s "$finalFooter"
     return $status
 }
+printWeeklyDistribution()
+{
+    unset previousFooter
+    local status=99 footer footerCount=0
+    while :
+    do
+	# Each section consists of 4 lines:
+	# - legend for graph
+	# - legend for footer
+	# - footer
+	# - comma-separated data
+	local graphLegendFromData; IFS=$'\n' read -r graphLegendFromData || break
+	local graphLegend="${graphLegendFromData:-$graphLegendText}"
+	local footerLegendFromData; IFS=$'\n' read -r footerLegendFromData || break
+	local footerLegend="${footerLegendFromData:-$footerLegendText}"
+	IFS=$'\n' read -r footer || break
+	local data; IFS=$'\n' read -r data || break
 
-tally | printDistribution
+	local sparkEmptyOverride; [ -n "${SPARK_EMPTY+t}" ] || sparkEmptyOverride='SPARK_EMPTY="$DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL"'
+	local renderedDistribution; renderedDistribution="$(eval "$sparkEmptyOverride" 'spark --min 0 "${sparkArgs[@]}" "$data"')" && status=0 || exit $?
+
+	local legendWidth=$DISTRIBUTIONOVERTHEYEAR_LEGEND_LENGTH
+
+	local B="$DISTRIBUTIONOVERTHEYEAR_COLOR_BORDER" L="$DISTRIBUTIONOVERTHEYEAR_COLOR_LEGEND" F="$DISTRIBUTIONOVERTHEYEAR_COLOR_FOOTER" U="$DISTRIBUTIONOVERTHEYEAR_COLOR_UNITS" R="$DISTRIBUTIONOVERTHEYEAR_COLOR_RESET"
+	if [ "$isFooter" ]; then
+	    if [ -z "$legendWidth" ]; then
+		legendWidth=$((${#graphLegend} > ${#footerLegend} ? ${#graphLegend} : ${#footerLegend}))
+		[ -n "${borders[0]}" ] || let legendWidth+=1
+	    fi
+
+	    if [ "$isFooterOnlyOnChange" ]; then
+		if [ -n "${previousFooter+t}" -a "$previousFooter" != "$footer" ]; then
+		    printf %s "$finalFooter"
+		    finalFooter=
+		    footerCount=0
+		fi
+		previousFooter="$footer"
+	    fi
+	    if [ -n "$footerEvery" ] && [ $((footerCount % footerEvery)) -eq 0 ]; then
+		printf %s "$finalFooter"
+	    fi
+
+	    printf "%s%-${legendWidth}.${legendWidth}s%s%s%s%s\\n" "$L" "$graphLegend" "$R" "${B}${borders[0]}${R}" "$renderedDistribution" "${B}${borders[1]}${R}"
+	    printf "${footerCapture[@]}" \
+		   "%s%-${legendWidth}.${legendWidth}s%s%s%s%s\\n" "$F" "$footerLegend" "$R" "${B}${borders[4]}${R}" "${U}${footer}${R}" "${B}${borders[5]}${R}"
+
+	    let footerCount+=1
+	else
+	    local completeLegend="$graphLegend"; [ -n "$graphLegend" -a -n "$footerLegend" ] && completeLegend="${completeLegend} "; completeLegend="${completeLegend}${footerLegend}"
+	    printf "%s%${legendWidth:+-}${legendWidth}${legendWidth:+.}${legendWidth}s%s%s\\n" "$L" "$completeLegend" "$R" "$renderedDistribution"
+	fi
+    done
+
+    [ -z "$finalFooter" ] || printf %s "$finalFooter"
+    return $status
+}
+
+tally | \
+    if [ "$isWeekly" ]; then
+	printWeeklyDistribution
+    else
+	printDailyDistribution
+    fi
