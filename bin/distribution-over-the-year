@@ -181,7 +181,7 @@ tally()
 '
 BEGIN {
     splitFieldNrNum = split(splitFieldNrList, splitFieldNrs, "\n")
-    split("Jan ,Feb ,Mar  ,Apr ,May  ,Jun ,Jul ,Aug  ,Sep ,Oct ,Nov  ,Dec    ", monthLegend, /,/)
+    split("Jan ,Feb ,Mar  ,Apr ,May  ,Jun ,Jul ,Aug  ,Sep ,Oct ,Nov  ,Dec   ", monthLegend, /,/)
 
     emptyCellWithoutAnsiEscapes = gensub(/\x1b\[[0-9:;]*[mK]/, "", "g", emptyCell)
     cellWidth = (emptyCellWithoutAnsiEscapes == "　" ? 2 : length(emptyCellWithoutAnsiEscapes)) # Rudimentary handling of fullwidth characters (just U+3000 IDEOGRAPHIC SPACE).
@@ -267,7 +267,7 @@ printDistribution()
     local status=99 footer footerCount=0
     while :
     do
-	# Each section consists of 4 lines:
+	# Each section consists of 10 lines:
 	# - legend for graph
 	# - legend for footer
 	# - footer
