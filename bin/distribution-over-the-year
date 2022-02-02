@@ -197,15 +197,8 @@ function printFooter(      footer, i, j)
     }
     print footer
 }
-function printSection(      h, result, d, s)
+function printDailySection(      d, result, s)
 {
-    if (length(count) == 0) return
-
-    print graphLegend; graphLegend = ""
-    print footerLegend; footerLegend = ""
-
-    printFooter()
-
     for (d = 0; d < 7; ++d) {
 	result = ""
 	for (s = 1; s < 366 + 7; s += 7) {
@@ -213,6 +206,16 @@ function printSection(      h, result, d, s)
 	}
 	print result
     }
+}
+function printSection()
+{
+    if (length(count) == 0) return
+
+    print graphLegend; graphLegend = ""
+    print footerLegend; footerLegend = ""
+
+    printFooter()
+    printDailySection()
     delete count
 }
 function render(v)
