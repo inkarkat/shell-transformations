@@ -1,0 +1,161 @@
+#!/bin/bash
+
+: ${DISTRIBUTIONOVERAUTORANGE_MAX_GRAPHED_MONTHS:=3}	# Maximum number of months that gets graphed as concatenated distributions over the month.
+: ${DISTRIBUTIONOVERAUTORANGE_MAX_GRAPHED_DAYS:=14}	# Maximum number of days that gets graphed as concatenated distributions over the day.
+
+: ${DISTRIBUTIONOVERAUTORANGE_YEAR_DAILY_FOOTER_EVERY=}
+: ${DISTRIBUTIONOVERAUTORANGE_YEAR_WEEKLY_FOOTER_EVERY=$((${LINES:-0} ? (LINES > 2 ? LINES - 2 : 10) : 10))}
+: ${DISTRIBUTIONOVERAUTORANGE_MONTH_FOOTER_EVERY=6}
+: ${DISTRIBUTIONOVERAUTORANGE_DAY_FOOTER_EVERY=7}
+
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
+    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...' | %q %s\\n" "$(basename "$1")" '[--no-footer|--final-footer-only|footer-only-on-change|--footer-every N] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [-F|--field-separator FS] [--slots-per-day N] [--slots-per-hour N] [--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar] [--weekly] [SPARK-ARGS ...] [-?|-h|--help]'
+}
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
+Print the distribution of the number of dates (assumed to be ordered, either
+from earliest to latest or in descending order) in a graph that depends on the
+range of input dates:
+- over the day (for a maximum of $DISTRIBUTIONOVERAUTORANGE_MAX_GRAPHED_DAYS days)
+- over the month (for a maximum of $DISTRIBUTIONOVERAUTORANGE_MAX_GRAPHED_MONTHS months)
+- over year(s) (for anything longer)
+  - as individual days or
+  - as aggregated full weeks (with --weekly)
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    echo
+    cat <<HELPTEXT
+Special out-of-the-box spark style customizations:
+    --as colorbox-calendar	6 Emoji-boxes from purple to red
+    --as green-calendar		shades of green small boxes
+    --as green-large-calendar	shades of green in square (double-width) boxes
+
+A record must have year, month, day, hour, minutes[, seconds and other
+information like timezone] in that order, parseable by the date command as well
+as splittable into individual fields via the default whitespace + [:_/-] or the
+passed FS.
+
+SEE ALSO:
+- distribution-over-the-year
+- distribution-over-the-month
+- distribution-over-the-day
+- spark
+
+EXIT STATUS:
+    0	Complete success.
+    1	Failed to graph the distribution.
+    2	Bad invocation, wrong or missing command-line arguments.
+    99	No input data.
+HELPTEXT
+}
+
+typeset -a dayDistributionDefaultRenderArgs=()
+typeset -a monthDistributionDefaultRenderArgs=()
+typeset -a yearDistributionDefaultRenderArgs=()
+if [ -t 1 ]; then
+    dayDistributionDefaultRenderArgs=(--as green-calendar)
+    monthDistributionDefaultRenderArgs=(--as green-calendar)
+    yearDistributionDefaultRenderArgs=(--as green-calendar)
+    : ${COLUMNS:=80}
+    if [ $COLUMNS -ge 150 ]; then
+	dayDistributionDefaultRenderArgs=(--as green-large-calendar)
+	monthDistributionDefaultRenderArgs=(--as green-large-calendar)
+	yearDistributionDefaultRenderArgs=(--as green-large-calendar)
+    elif [ $COLUMNS -ge 120 ]; then
+	monthDistributionDefaultRenderArgs=(--as green-large-calendar)
+	yearDistributionDefaultRenderArgs=(--as green-large-calendar)
+    elif [ $COLUMNS -ge 70 ]; then
+	monthDistributionDefaultRenderArgs=(--as green-large-calendar)
+    fi
+fi
+typeset -a distributionArgs=()
+typeset -a distributionOverTheYearArgs=()
+typeset -a distributionOverTheMonthArgs=()
+typeset -a distributionOverTheDayArgs=()
+typeset -a distributionFooterArgs=()
+typeset -a distributionRenderArgs=()
+isWeekly=t
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+
+	--weekly)	distributionOverTheYearArgs+=("$1"); shift; isWeekly=t;;
+	--slots-per-day)
+			distributionOverTheMonthArgs+=("$1" "$2"); shift; shift;;
+	--slots-per-hour)
+			distributionOverTheDayArgs+=("$1" "$2"); shift; shift;;
+
+	--no-footer|--final-footer-only|--footer-only-on-change)
+			distributionFooterArgs+=("$1"); shift;;
+	--footer-every) distributionFooterArgs+=("$1" "$2"); shift; shift;;
+	--as)		distributionRenderArgs=("$1" "$2"); shift; shift;;
+
+	--)		distributionArgs+=("$1"); shift; break;;
+	*)		distributionArgs+=("$1"); shift;;
+    esac
+done
+
+readarray -t dates
+[ ${#dates[@]} -gt 0 ] || exit 99
+
+firstDate="${dates[0]%% *}"
+lastDate="${dates[-1]%% *}"
+
+monthDiff="$(datediff --output months "$firstDate" "$lastDate")" || exit $?
+if [ $monthDiff -gt $DISTRIBUTIONOVERAUTORANGE_MAX_GRAPHED_MONTHS ]; then
+    typeset -a distributionCommand=(
+	distribution-over-the-year "${distributionOverTheYearArgs[@]}"
+	    --graph-field 1
+	    --split-graph-field 1
+    )
+    [ ${#distributionRenderArgs[@]} -gt 0 ] || distributionRenderArgs=("${yearDistributionDefaultRenderArgs[@]}")
+    [ ${#distributionFooterArgs[@]} -gt 0 ] || \
+	if [ "$isWeekly" ]; then
+	    [ -z "$DISTRIBUTIONOVERAUTORANGE_YEAR_WEEKLY_FOOTER_EVERY" ] || \
+		distributionFooterArgs=(--footer-every "$DISTRIBUTIONOVERAUTORANGE_YEAR_WEEKLY_FOOTER_EVERY")
+	else
+	    [ -z "$DISTRIBUTIONOVERAUTORANGE_YEAR_DAILY_FOOTER_EVERY" ] || \
+		distributionFooterArgs=(--footer-every "$DISTRIBUTIONOVERAUTORANGE_YEAR_DAILY_FOOTER_EVERY")
+	fi
+else
+    dayDiff="$(datediff --output days "$firstDate" "$lastDate")" || exit $?
+    if [ $dayDiff -gt $DISTRIBUTIONOVERAUTORANGE_MAX_GRAPHED_DAYS ]; then
+	typeset -a distributionCommand=(
+	    distribution-over-the-month "${distributionOverTheMonthArgs[@]}"
+		--graph-field 2 --footer-field 1
+		--split-graph-field 1 --split-graph-field 2
+	)
+	[ ${#distributionRenderArgs[@]} -gt 0 ] || distributionRenderArgs=("${monthDistributionDefaultRenderArgs[@]}")
+	[ ${#distributionFooterArgs[@]} -gt 0 ] || [ -z "$DISTRIBUTIONOVERAUTORANGE_MONTH_FOOTER_EVERY" ] || \
+	    distributionFooterArgs=(--footer-every "$DISTRIBUTIONOVERAUTORANGE_MONTH_FOOTER_EVERY")
+    else
+	typeset -a distributionCommand=(
+	    distribution-over-the-day "${distributionOverTheDayArgs[@]}"
+		--first-hour 6 --last-hour 23 --hour-field 4 --minute-field 5
+		--graph-field 3 --footer-field 2
+		--split-graph-field 1 --split-graph-field 2 --split-graph-field 3
+	)
+	[ ${#distributionRenderArgs[@]} -gt 0 ] || distributionRenderArgs=("${dayDistributionDefaultRenderArgs[@]}")
+	[ ${#distributionFooterArgs[@]} -gt 0 ] || [ -z "$DISTRIBUTIONOVERAUTORANGE_DAY_FOOTER_EVERY" ] || \
+	    distributionFooterArgs=(--footer-every "$DISTRIBUTIONOVERAUTORANGE_DAY_FOOTER_EVERY")
+    fi
+fi
+
+typeset -a pager=("${PAGER:-less}" --RAW-CONTROL-CHARS); [ -t 1 ] || pager=()
+printf '%s\n' "${dates[@]}" | \
+    eval '"${distributionCommand[@]}" "${distributionArgs[@]}" "${distributionFooterArgs[@]}" "${distributionRenderArgs[@]}"' "${pager:+|}" '"${pager[@]}"'
