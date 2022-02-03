@@ -31,7 +31,7 @@ from earliest to latest or in descending order) in a graph that depends on the
 range of input dates:
 - over the day (for a maximum of $DISTRIBUTIONOVERAUTORANGE_MAX_GRAPHED_DAYS days)
 - over the month (for a maximum of $DISTRIBUTIONOVERAUTORANGE_MAX_GRAPHED_MONTHS months)
-- over year(s) (for everything longer)
+- over year(s) (for anything longer)
   - as individual days or
   - as aggregated full weeks (with --weekly)
 HELPDESCRIPTION
@@ -39,7 +39,10 @@ HELPDESCRIPTION
     printShortUsage "$1"
     echo
     cat <<HELPTEXT
-    --as NAME-calendar	Special out-of-the-box spark style customizations.
+Special out-of-the-box spark style customizations:
+    --as colorbox-calendar	6 Emoji-boxes from purple to red
+    --as green-calendar		shades of green small boxes
+    --as green-large-calendar	shades of green in square (double-width) boxes
 
 A record must have year, month, day, hour, minutes[, seconds and other
 information like timezone] in that order, parseable by the date command as well
