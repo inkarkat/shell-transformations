@@ -12,7 +12,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...' | %q %s\\n" "$(basename "$1")" '[--no-footer|--final-footer-only|footer-only-on-change|--footer-every N] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [-F|--field-separator FS] [--slots-per-day N] [--slots-per-hour N] [--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar] [--weekly] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...' | %q %s\\n" "$(basename "$1")" '[--no-footer|--final-footer-only|footer-only-on-change|--footer-every N] [--graph-legend TEXT] [--footer-legend TEXT] [-F|--field-separator FS] [--slots-per-day N] [--slots-per-hour N] [--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar] [--weekly] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {
