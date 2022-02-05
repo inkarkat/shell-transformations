@@ -12,7 +12,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...' | %q %s\\n" "$(basename "$1")" '[--no-footer|--final-footer-only|footer-only-on-change|--footer-every N] [--graph-legend TEXT] [--footer-legend TEXT] [-F|--field-separator FS] [--slots-per-day N] [--slots-per-hour N] [--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar] [--weekly] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...' | %q %s\\n" "$(basename "$1")" '[--no-footer|--final-footer-only|footer-only-on-change|--footer-every N] [--graph-legend TEXT] [--footer-legend TEXT] [--force-legends] [-F|--field-separator FS] [--slots-per-day N] [--slots-per-hour N] [--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar] [--weekly] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -39,6 +39,9 @@ HELPDESCRIPTION
     printShortUsage "$1"
     echo
     cat <<HELPTEXT
+    --force-legends	Always show the text extracted from the input in front
+			of the distribution and footer, also when the input data
+			is just within the range of a single distribution.
 Special out-of-the-box spark style customizations:
     --as colorbox-calendar	6 Emoji-boxes from purple to red
     --as green-calendar		shades of green small boxes
@@ -82,13 +85,15 @@ if [ -t 1 ]; then
 	monthDistributionDefaultRenderArgs=(--as green-large-calendar)
     fi
 fi
+isForceLegends=
 typeset -a distributionArgs=()
 typeset -a distributionOverTheYearArgs=()
 typeset -a distributionOverTheMonthArgs=()
 typeset -a distributionOverTheDayArgs=()
 typeset -a distributionFooterArgs=()
 typeset -a distributionRenderArgs=()
-isWeekly=t
+typeset -a distributionFieldSeparatorArgs=(-F '[[:space:]:_/-]')
+isWeekly=
 while [ $# -ne 0 ]
 do
     case "$1" in
@@ -104,23 +109,40 @@ do
 			distributionFooterArgs+=("$1"); shift;;
 	--footer-every) distributionFooterArgs+=("$1" "$2"); shift; shift;;
 	--as)		distributionRenderArgs=("$1" "$2"); shift; shift;;
+	--field-separator|-F)
+			distributionFieldSeparatorArgs=("$1" "$2"); shift; shift;;
+
+	--force-legends)
+			shift; isForceLegends=t;;
 
 	--)		distributionArgs+=("$1"); shift; break;;
 	*)		distributionArgs+=("$1"); shift;;
     esac
 done
 
+isSingleRange()
+{
+    { IFS=$'\n' read -r firstRange; IFS=$'\n' read -r lastRange; } < <(printf '%s\n' "$firstDate" "$lastDate" | field "${distributionFieldSeparatorArgs[@]}" "$@")
+    [ "$firstRange" = "$lastRange" ]
+}
+
 readarray -t dates
 [ ${#dates[@]} -gt 0 ] || exit 99
 
 firstDate="${dates[0]%% *}"
 lastDate="${dates[-1]%% *}"
-
 monthDiff="$(datediff --output months "$firstDate" "$lastDate")" || exit $?
 if [ $monthDiff -gt $DISTRIBUTIONOVERAUTORANGE_MAX_GRAPHED_MONTHS ]; then
+    typeset -a distributionOverTheYearExtractFieldArgs=(--graph-field 1)
+    [ "$isForceLegends" ] || ! isSingleRange 1 || \
+	if [ "$isWeekly" ] || contains --footer-legend "${distributionArgs[@]}"; then
+	    distributionOverTheYearExtractFieldArgs=()
+	else
+	    distributionOverTheYearExtractFieldArgs=(--footer-legend '    ')
+	fi
+
     typeset -a distributionCommand=(
-	distribution-over-the-year "${distributionOverTheYearArgs[@]}"
-	    --graph-field 1
+	distribution-over-the-year "${distributionOverTheYearArgs[@]}" "${distributionOverTheYearExtractFieldArgs[@]}"
 	    --split-graph-field 1
     )
     [ ${#distributionRenderArgs[@]} -gt 0 ] || distributionRenderArgs=("${yearDistributionDefaultRenderArgs[@]}")
@@ -135,19 +157,23 @@ if [ $monthDiff -gt $DISTRIBUTIONOVERAUTORANGE_MAX_GRAPHED_MONTHS ]; then
 else
     dayDiff="$(datediff --output days "$firstDate" "$lastDate")" || exit $?
     if [ $dayDiff -gt $DISTRIBUTIONOVERAUTORANGE_MAX_GRAPHED_DAYS ]; then
+	typeset -a distributionOverTheMonthExtractFieldArgs=(--graph-field 2 --footer-field 1)
+	[ "$isForceLegends" ] || ! isSingleRange 1 2 || distributionOverTheMonthExtractFieldArgs=()
+
 	typeset -a distributionCommand=(
-	    distribution-over-the-month "${distributionOverTheMonthArgs[@]}"
-		--graph-field 2 --footer-field 1
+	    distribution-over-the-month "${distributionOverTheMonthArgs[@]}" "${distributionOverTheMonthExtractFieldArgs[@]}"
 		--split-graph-field 1 --split-graph-field 2
 	)
 	[ ${#distributionRenderArgs[@]} -gt 0 ] || distributionRenderArgs=("${monthDistributionDefaultRenderArgs[@]}")
 	[ ${#distributionFooterArgs[@]} -gt 0 ] || [ -z "$DISTRIBUTIONOVERAUTORANGE_MONTH_FOOTER_EVERY" ] || \
 	    distributionFooterArgs=(--footer-every "$DISTRIBUTIONOVERAUTORANGE_MONTH_FOOTER_EVERY")
     else
+	typeset -a distributionOverTheDayExtractFieldArgs=(--graph-field 3 --footer-field 2)
+	[ "$isForceLegends" ] || ! isSingleRange 1 2 3 || distributionOverTheDayExtractFieldArgs=()
+
 	typeset -a distributionCommand=(
 	    distribution-over-the-day "${distributionOverTheDayArgs[@]}"
-		--first-hour 6 --last-hour 23 --hour-field 4 --minute-field 5
-		--graph-field 3 --footer-field 2
+		--first-hour 6 --last-hour 23 --hour-field 4 --minute-field 5 "${distributionOverTheDayExtractFieldArgs[@]}"
 		--split-graph-field 1 --split-graph-field 2 --split-graph-field 3
 	)
 	[ ${#distributionRenderArgs[@]} -gt 0 ] || distributionRenderArgs=("${dayDistributionDefaultRenderArgs[@]}")
@@ -158,4 +184,4 @@ fi
 
 typeset -a pager=("${PAGER:-less}" --RAW-CONTROL-CHARS); [ -t 1 ] || pager=()
 printf '%s\n' "${dates[@]}" | \
-    eval '"${distributionCommand[@]}" "${distributionArgs[@]}" "${distributionFooterArgs[@]}" "${distributionRenderArgs[@]}"' "${pager:+|}" '"${pager[@]}"'
+    eval '"${distributionCommand[@]}" "${distributionArgs[@]}" "${distributionFooterArgs[@]}" "${distributionRenderArgs[@]}" "${distributionFieldSeparatorArgs[@]}"' "${pager:+|}" '"${pager[@]}"'
