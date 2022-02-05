@@ -90,6 +90,7 @@ typeset -a distributionArgs=()
 typeset -a distributionOverTheYearArgs=()
 typeset -a distributionOverTheMonthArgs=()
 typeset -a distributionOverTheDayArgs=()
+typeset -a distributionOverTheDayHourArgs=()
 typeset -a distributionFooterArgs=()
 typeset -a distributionRenderArgs=()
 typeset -a distributionFieldSeparatorArgs=(-F '[[:space:]:_/-]')
@@ -104,6 +105,8 @@ do
 			distributionOverTheMonthArgs+=("$1" "$2"); shift; shift;;
 	--slots-per-hour)
 			distributionOverTheDayArgs+=("$1" "$2"); shift; shift;;
+	--first-hour|--last-hour)
+			distributionOverTheDayHourArgs+=("$1" "$2"); shift; shift;;
 
 	--no-footer|--final-footer-only|--footer-only-on-change)
 			distributionFooterArgs+=("$1"); shift;;
@@ -170,10 +173,11 @@ else
     else
 	typeset -a distributionOverTheDayExtractFieldArgs=(--graph-field 3 --footer-field 2)
 	[ "$isForceLegends" ] || ! isSingleRange 1 2 3 || distributionOverTheDayExtractFieldArgs=()
+	[ ${#distributionOverTheDayHourArgs[@]} -gt 0 ] || distributionOverTheDayHourArgs=(--first-hour 6 --last-hour 23)
 
 	typeset -a distributionCommand=(
-	    distribution-over-the-day "${distributionOverTheDayArgs[@]}"
-		--first-hour 6 --last-hour 23 --hour-field 4 --minute-field 5 "${distributionOverTheDayExtractFieldArgs[@]}"
+	    distribution-over-the-day "${distributionOverTheDayArgs[@]}" "${distributionOverTheDayHourArgs[@]}"
+		--hour-field 4 --minute-field 5 "${distributionOverTheDayExtractFieldArgs[@]}"
 		--split-graph-field 1 --split-graph-field 2 --split-graph-field 3
 	)
 	[ ${#distributionRenderArgs[@]} -gt 0 ] || distributionRenderArgs=("${dayDistributionDefaultRenderArgs[@]}")
