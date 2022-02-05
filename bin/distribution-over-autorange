@@ -120,6 +120,12 @@ do
     esac
 done
 
+isSingleRange()
+{
+    { IFS=$'\n' read -r firstRange; IFS=$'\n' read -r lastRange; } < <(printf '%s\n' "$firstDate" "$lastDate" | field "${distributionFieldSeparatorArgs[@]}" "$@")
+    [ "$firstRange" = "$lastRange" ]
+}
+
 readarray -t dates
 [ ${#dates[@]} -gt 0 ] || exit 99
 
@@ -128,15 +134,12 @@ lastDate="${dates[-1]%% *}"
 monthDiff="$(datediff --output months "$firstDate" "$lastDate")" || exit $?
 if [ $monthDiff -gt $DISTRIBUTIONOVERAUTORANGE_MAX_GRAPHED_MONTHS ]; then
     typeset -a distributionOverTheYearExtractFieldArgs=(--graph-field 1)
-    if [ ! "$isForceLegends" ]; then
-	{ IFS=$'\n' read -r firstYear; IFS=$'\n' read -r lastYear; } < <(printf '%s\n' "$firstDate" "$lastDate" | field "${distributionFieldSeparatorArgs[@]}" 1)
-	[ $firstYear -eq $lastYear ] && \
-	    if [ "$isWeekly" ] || contains --footer-legend "${distributionArgs[@]}"; then
-		distributionOverTheYearExtractFieldArgs=()
-	    else
-		distributionOverTheYearExtractFieldArgs=(--footer-legend '    ')
-	    fi
-    fi
+    [ "$isForceLegends" ] || ! isSingleRange 1 || \
+	if [ "$isWeekly" ] || contains --footer-legend "${distributionArgs[@]}"; then
+	    distributionOverTheYearExtractFieldArgs=()
+	else
+	    distributionOverTheYearExtractFieldArgs=(--footer-legend '    ')
+	fi
 
     typeset -a distributionCommand=(
 	distribution-over-the-year "${distributionOverTheYearArgs[@]}" "${distributionOverTheYearExtractFieldArgs[@]}"
@@ -155,11 +158,7 @@ else
     dayDiff="$(datediff --output days "$firstDate" "$lastDate")" || exit $?
     if [ $dayDiff -gt $DISTRIBUTIONOVERAUTORANGE_MAX_GRAPHED_DAYS ]; then
 	typeset -a distributionOverTheMonthExtractFieldArgs=(--graph-field 2 --footer-field 1)
-	if [ ! "$isForceLegends" ]; then
-	    { IFS=$'\n' read -r firstYearMonth; IFS=$'\n' read -r lastYearMonth; } < <(printf '%s\n' "$firstDate" "$lastDate" | field "${distributionFieldSeparatorArgs[@]}" 1 2)
-	    [ "$firstYearMonth" = "$lastYearMonth" ] && \
-		distributionOverTheMonthExtractFieldArgs=()
-	fi
+	[ "$isForceLegends" ] || ! isSingleRange 1 2 || distributionOverTheMonthExtractFieldArgs=()
 
 	typeset -a distributionCommand=(
 	    distribution-over-the-month "${distributionOverTheMonthArgs[@]}" "${distributionOverTheMonthExtractFieldArgs[@]}"
@@ -170,11 +169,7 @@ else
 	    distributionFooterArgs=(--footer-every "$DISTRIBUTIONOVERAUTORANGE_MONTH_FOOTER_EVERY")
     else
 	typeset -a distributionOverTheDayExtractFieldArgs=(--graph-field 3 --footer-field 2)
-	if [ ! "$isForceLegends" ]; then
-	    { IFS=$'\n' read -r firstYearMonthDay; IFS=$'\n' read -r lastYearMonthDay; } < <(printf '%s\n' "$firstDate" "$lastDate" | field "${distributionFieldSeparatorArgs[@]}" 1 2 3)
-	    [ "$firstYearMonthDay" = "$lastYearMonthDay" ] && \
-		distributionOverTheDayExtractFieldArgs=()
-	fi
+	[ "$isForceLegends" ] || ! isSingleRange 1 2 3 || distributionOverTheDayExtractFieldArgs=()
 
 	typeset -a distributionCommand=(
 	    distribution-over-the-day "${distributionOverTheDayArgs[@]}"
