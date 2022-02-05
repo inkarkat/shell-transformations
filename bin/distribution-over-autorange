@@ -89,7 +89,7 @@ typeset -a distributionOverTheDayArgs=()
 typeset -a distributionFooterArgs=()
 typeset -a distributionRenderArgs=()
 typeset -a distributionFieldSeparatorArgs=(-F '[[:space:]:_/-]')
-isWeekly=t
+isWeekly=
 while [ $# -ne 0 ]
 do
     case "$1" in
