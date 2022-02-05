@@ -118,9 +118,9 @@ lastDate="${dates[-1]%% *}"
 
 monthDiff="$(datediff --output months "$firstDate" "$lastDate")" || exit $?
 if [ $monthDiff -gt $DISTRIBUTIONOVERAUTORANGE_MAX_GRAPHED_MONTHS ]; then
+    typeset -a distributionOverTheYearExtractFieldArgs=(--graph-field 1)
     typeset -a distributionCommand=(
-	distribution-over-the-year "${distributionOverTheYearArgs[@]}"
-	    --graph-field 1
+	distribution-over-the-year "${distributionOverTheYearArgs[@]}" "${distributionOverTheYearExtractFieldArgs[@]}"
 	    --split-graph-field 1
     )
     [ ${#distributionRenderArgs[@]} -gt 0 ] || distributionRenderArgs=("${yearDistributionDefaultRenderArgs[@]}")
@@ -135,19 +135,19 @@ if [ $monthDiff -gt $DISTRIBUTIONOVERAUTORANGE_MAX_GRAPHED_MONTHS ]; then
 else
     dayDiff="$(datediff --output days "$firstDate" "$lastDate")" || exit $?
     if [ $dayDiff -gt $DISTRIBUTIONOVERAUTORANGE_MAX_GRAPHED_DAYS ]; then
+    typeset -a distributionOverTheMonthExtractFieldArgs=(--graph-field 2 --footer-field 1)
 	typeset -a distributionCommand=(
-	    distribution-over-the-month "${distributionOverTheMonthArgs[@]}"
-		--graph-field 2 --footer-field 1
+	    distribution-over-the-month "${distributionOverTheMonthArgs[@]}" "${distributionOverTheMonthExtractFieldArgs[@]}"
 		--split-graph-field 1 --split-graph-field 2
 	)
 	[ ${#distributionRenderArgs[@]} -gt 0 ] || distributionRenderArgs=("${monthDistributionDefaultRenderArgs[@]}")
 	[ ${#distributionFooterArgs[@]} -gt 0 ] || [ -z "$DISTRIBUTIONOVERAUTORANGE_MONTH_FOOTER_EVERY" ] || \
 	    distributionFooterArgs=(--footer-every "$DISTRIBUTIONOVERAUTORANGE_MONTH_FOOTER_EVERY")
     else
+	typeset -a distributionOverTheDayExtractFieldArgs=(--graph-field 3 --footer-field 2)
 	typeset -a distributionCommand=(
 	    distribution-over-the-day "${distributionOverTheDayArgs[@]}"
-		--first-hour 6 --last-hour 23 --hour-field 4 --minute-field 5
-		--graph-field 3 --footer-field 2
+		--first-hour 6 --last-hour 23 --hour-field 4 --minute-field 5 "${distributionOverTheDayExtractFieldArgs[@]}"
 		--split-graph-field 1 --split-graph-field 2 --split-graph-field 3
 	)
 	[ ${#distributionRenderArgs[@]} -gt 0 ] || distributionRenderArgs=("${dayDistributionDefaultRenderArgs[@]}")
