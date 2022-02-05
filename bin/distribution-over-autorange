@@ -88,6 +88,7 @@ typeset -a distributionOverTheMonthArgs=()
 typeset -a distributionOverTheDayArgs=()
 typeset -a distributionFooterArgs=()
 typeset -a distributionRenderArgs=()
+typeset -a distributionFieldSeparatorArgs=(-F '[[:space:]:_/-]')
 isWeekly=t
 while [ $# -ne 0 ]
 do
@@ -104,6 +105,8 @@ do
 			distributionFooterArgs+=("$1"); shift;;
 	--footer-every) distributionFooterArgs+=("$1" "$2"); shift; shift;;
 	--as)		distributionRenderArgs=("$1" "$2"); shift; shift;;
+	--field-separator|-F)
+			distributionFieldSeparatorArgs=("$1" "$2"); shift; shift;;
 
 	--)		distributionArgs+=("$1"); shift; break;;
 	*)		distributionArgs+=("$1"); shift;;
@@ -158,4 +161,4 @@ fi
 
 typeset -a pager=("${PAGER:-less}" --RAW-CONTROL-CHARS); [ -t 1 ] || pager=()
 printf '%s\n' "${dates[@]}" | \
-    eval '"${distributionCommand[@]}" "${distributionArgs[@]}" "${distributionFooterArgs[@]}" "${distributionRenderArgs[@]}"' "${pager:+|}" '"${pager[@]}"'
+    eval '"${distributionCommand[@]}" "${distributionArgs[@]}" "${distributionFooterArgs[@]}" "${distributionRenderArgs[@]}" "${distributionFieldSeparatorArgs[@]}"' "${pager:+|}" '"${pager[@]}"'
