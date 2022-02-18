@@ -102,6 +102,9 @@ typeset -a distributionOverTheYearArgs=()
 typeset -a distributionOverTheMonthArgs=()
 typeset -a distributionOverTheDayArgs=()
 typeset -a distributionOverTheDayHourArgs=()
+typeset -a distributionOverTheYearExtractFieldArgs=(--graph-field 1)
+typeset -a distributionOverTheMonthExtractFieldArgs=(--graph-field 2 --footer-field 1)
+typeset -a distributionOverTheDayExtractFieldArgs=(--graph-field 3 --footer-field 2)
 typeset -a distributionSplitArgs=()
 typeset -a distributionFooterArgs=()
 typeset -a distributionRenderArgs=()
@@ -158,8 +161,11 @@ lastDate="${dates[-1]%% *}"
 [ -n "$forceRange" ] || monthDiff="$(datediff --output months "$firstDate" "$lastDate")" || exit $?
 if [ "$forceRange" = 'year' -o "$forceRange" = 'year-weekly' ] || { [ -z "$forceRange" ] && [ $monthDiff -gt $DISTRIBUTIONOVERAUTORANGE_MAX_GRAPHED_MONTHS ]; }; then
     [ "$forceRange" = 'year-weekly' ] && isWeekly=t
-    [ "$isSplitting" ] && distributionSplitArgs=(--split-graph-field 1)
-    typeset -a distributionOverTheYearExtractFieldArgs=(--graph-field 1)
+    if [ "$isSplitting" ]; then
+	distributionSplitArgs=(--split-graph-field 1)
+    elif [ ! "$isForceLegends" ]; then
+	distributionOverTheYearExtractFieldArgs=()
+    fi
     [ "$isForceLegends" ] || ! isSingleRange 1 || \
 	if [ "$isWeekly" ] || contains --footer-legend "${distributionArgs[@]}"; then
 	    distributionOverTheYearExtractFieldArgs=()
@@ -181,9 +187,12 @@ if [ "$forceRange" = 'year' -o "$forceRange" = 'year-weekly' ] || { [ -z "$force
 else
     [ -n "$forceRange" ] || dayDiff="$(datediff --output days "$firstDate" "$lastDate")" || exit $?
     if [ "$forceRange" = 'month' ] || { [ -z "$forceRange" ] && [ $dayDiff -gt $DISTRIBUTIONOVERAUTORANGE_MAX_GRAPHED_DAYS ]; } || \
-	{ [ "$forceRange" != 'day' ] && ! hasHours; }; then
-	[ "$isSplitting" ] && distributionSplitArgs=(--split-graph-field 1 --split-graph-field 2)
-	typeset -a distributionOverTheMonthExtractFieldArgs=(--graph-field 2 --footer-field 1)
+	    { [ "$forceRange" != 'day' ] && ! hasHours; }; then
+	if [ "$isSplitting" ]; then
+	    distributionSplitArgs=(--split-graph-field 1 --split-graph-field 2)
+	elif [ ! "$isForceLegends" ]; then
+	    distributionOverTheMonthExtractFieldArgs=()
+	fi
 	[ "$isForceLegends" ] || ! isSingleRange 1 2 || distributionOverTheMonthExtractFieldArgs=()
 
 	typeset -a distributionCommand=(distribution-over-the-month "${distributionOverTheMonthArgs[@]}" "${distributionOverTheMonthExtractFieldArgs[@]}")
@@ -192,8 +201,11 @@ else
 	[ ${#distributionFooterArgs[@]} -gt 0 ] || [ -z "$DISTRIBUTIONOVERAUTORANGE_MONTH_FOOTER_EVERY" ] || \
 	    distributionFooterArgs=(--footer-every "$DISTRIBUTIONOVERAUTORANGE_MONTH_FOOTER_EVERY")
     elif [ "$forceRange" = 'day' ] || [ -z "$forceRange" ]; then
-	typeset -a distributionOverTheDayExtractFieldArgs=(--graph-field 3 --footer-field 2)
-	[ "$isSplitting" ] && distributionSplitArgs=(--split-graph-field 1 --split-graph-field 2 --split-graph-field 3)
+	if [ "$isSplitting" ]; then
+	    distributionSplitArgs=(--split-graph-field 1 --split-graph-field 2 --split-graph-field 3)
+	elif [ ! "$isForceLegends" ]; then
+	    distributionOverTheDayExtractFieldArgs=()
+	fi
 	[ ${#distributionOverTheDayHourArgs[@]} -gt 0 ] || distributionOverTheDayHourArgs=(--first-hour 6 --last-hour 23)
 	[ "$isForceLegends" ] || ! isSingleRange 1 2 3 || distributionOverTheDayExtractFieldArgs=()
 
