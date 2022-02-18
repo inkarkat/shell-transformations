@@ -193,7 +193,7 @@ if [ "$forceRange" = 'year' -o "$forceRange" = 'year-weekly' ] || { [ -z "$force
 else
     [ -n "$forceRange" ] || dayDiff="$(datediff --output days "$firstDate" "$lastDate")" || exit $?
     if [ "$forceRange" = 'month' ] || { [ -z "$forceRange" ] && [ $dayDiff -gt $DISTRIBUTIONOVERAUTORANGE_MAX_GRAPHED_DAYS ]; } || \
-	    { [ "$forceRange" != 'day' ] && ! hasHours; }; then
+	    { [ -z "$forceRange" ] && ! hasHours; }; then
 	if [ "$isSplitting" ]; then
 	    distributionSplitArgs=(--split-graph-field 1 --split-graph-field 2)
 	elif ! contains --graph-legend "${distributionArgs[@]}" && ! contains --footer-legend "${distributionArgs[@]}"; then
