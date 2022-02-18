@@ -52,10 +52,11 @@ Special out-of-the-box spark style customizations:
     --as green-calendar		shades of green small boxes
     --as green-large-calendar	shades of green in square (double-width) boxes
 
-A record must have year, month, day, hour, minutes[, seconds and other
-information like timezone] in that order, parseable by the date command as well
+A record must have YEAR, MONTH, DAY[, HOUR, MINUTES[, seconds and other
+information like timezone]] in that order, parseable by the date command as well
 as splittable into individual fields via the default whitespace + [:_/-] or the
-passed FS.
+passed FS. If no HOURs and MINUTEs are passed, the shortest range will be over
+the month.
 
 SEE ALSO:
 - distribution-over-the-year
@@ -136,6 +137,12 @@ isSingleRange()
     [ "$firstRange" = "$lastRange" ]
 }
 
+hasHours()
+{
+    { IFS=$'\n' read -r firstHours; IFS=$'\n' read -r lastHours; } < <(printf '%s\n' "$firstDate" "$lastDate" | field "${distributionFieldSeparatorArgs[@]}" 4 '' 5)
+    [ -n "$firstHours" -o -n "$lastHours" ]
+}
+
 readarray -t dates
 [ ${#dates[@]} -gt 0 ] || exit 99
 
@@ -167,7 +174,8 @@ if [ "$forceRange" = 'year' -o "$forceRange" = 'year-weekly' ] || { [ -z "$force
 	fi
 else
     [ -n "$forceRange" ] || dayDiff="$(datediff --output days "$firstDate" "$lastDate")" || exit $?
-    if [ "$forceRange" = 'month' ] || { [ -z "$forceRange" ] && [ $dayDiff -gt $DISTRIBUTIONOVERAUTORANGE_MAX_GRAPHED_DAYS ]; }; then
+    if [ "$forceRange" = 'month' ] || { [ -z "$forceRange" ] && [ $dayDiff -gt $DISTRIBUTIONOVERAUTORANGE_MAX_GRAPHED_DAYS ]; } || \
+	{ [ "$forceRange" != 'day' ] && ! hasHours; }; then
 	typeset -a distributionOverTheMonthExtractFieldArgs=(--graph-field 2 --footer-field 1)
 	[ "$isForceLegends" ] || ! isSingleRange 1 2 || distributionOverTheMonthExtractFieldArgs=()
 
