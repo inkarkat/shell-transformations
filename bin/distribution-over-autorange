@@ -147,6 +147,12 @@ isSingleRange()
     [ "$firstRange" = "$lastRange" ]
 }
 
+getMinMaxLegendArgs()
+{
+    { IFS=$'\n' read -r firstRange; IFS=$'\n' read -r lastRange; } < <(printf '%s\n' "$firstDate" "$lastDate" | field "${distributionFieldSeparatorArgs[@]}" "$@" | sort)
+    printf '%s\n' --graph-legend "$firstRange" --footer-legend "$lastRange"
+}
+
 hasHours()
 {
     { IFS=$'\n' read -r firstHours; IFS=$'\n' read -r lastHours; } < <(printf '%s\n' "$firstDate" "$lastDate" | field "${distributionFieldSeparatorArgs[@]}" 4 '' 5)
@@ -163,8 +169,8 @@ if [ "$forceRange" = 'year' -o "$forceRange" = 'year-weekly' ] || { [ -z "$force
     [ "$forceRange" = 'year-weekly' ] && isWeekly=t
     if [ "$isSplitting" ]; then
 	distributionSplitArgs=(--split-graph-field 1)
-    elif [ ! "$isForceLegends" ]; then
-	distributionOverTheYearExtractFieldArgs=()
+    elif ! contains --graph-legend "${distributionArgs[@]}" && ! contains --footer-legend "${distributionArgs[@]}"; then
+	readarray -t distributionOverTheYearExtractFieldArgs < <(getMinMaxLegendArgs 1)
     fi
     [ "$isForceLegends" ] || ! isSingleRange 1 || \
 	if [ "$isWeekly" ] || contains --footer-legend "${distributionArgs[@]}"; then
@@ -190,8 +196,8 @@ else
 	    { [ "$forceRange" != 'day' ] && ! hasHours; }; then
 	if [ "$isSplitting" ]; then
 	    distributionSplitArgs=(--split-graph-field 1 --split-graph-field 2)
-	elif [ ! "$isForceLegends" ]; then
-	    distributionOverTheMonthExtractFieldArgs=()
+	elif ! contains --graph-legend "${distributionArgs[@]}" && ! contains --footer-legend "${distributionArgs[@]}"; then
+	    readarray -t distributionOverTheMonthExtractFieldArgs < <(getMinMaxLegendArgs 1 2)
 	fi
 	[ "$isForceLegends" ] || ! isSingleRange 1 2 || distributionOverTheMonthExtractFieldArgs=()
 
@@ -203,8 +209,8 @@ else
     elif [ "$forceRange" = 'day' ] || [ -z "$forceRange" ]; then
 	if [ "$isSplitting" ]; then
 	    distributionSplitArgs=(--split-graph-field 1 --split-graph-field 2 --split-graph-field 3)
-	elif [ ! "$isForceLegends" ]; then
-	    distributionOverTheDayExtractFieldArgs=()
+	elif ! contains --graph-legend "${distributionArgs[@]}" && ! contains --footer-legend "${distributionArgs[@]}"; then
+	    readarray -t distributionOverTheDayExtractFieldArgs < <(getMinMaxLegendArgs 1 2 3)
 	fi
 	[ ${#distributionOverTheDayHourArgs[@]} -gt 0 ] || distributionOverTheDayHourArgs=(--first-hour 6 --last-hour 23)
 	[ "$isForceLegends" ] || ! isSingleRange 1 2 3 || distributionOverTheDayExtractFieldArgs=()
