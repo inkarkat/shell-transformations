@@ -12,7 +12,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...' | %q %s\\n" "$(basename "$1")" '[--no-footer|--final-footer-only|footer-only-on-change|--footer-every N] [--graph-legend TEXT] [--footer-legend TEXT] [--force-legends] [-F|--field-separator FS] [--slots-per-day N] [--slots-per-hour N] [--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar] [--weekly] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...' | %q %s\\n" "$(basename "$1")" '[--no-footer|--final-footer-only|footer-only-on-change|--footer-every N] [--graph-legend TEXT] [--footer-legend TEXT] [--force-legends] [-F|--field-separator FS] [--slots-per-day N] [--slots-per-hour N] [--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar] [--over day|month|year|year-weekly|--weekly] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -42,6 +42,11 @@ HELPDESCRIPTION
     --force-legends	Always show the text extracted from the input in front
 			of the distribution and footer, also when the input data
 			is just within the range of a single distribution.
+    --over day|month|year|year-weekly
+			Ignore the range of input dates and graph the
+			distribution as passed. This way, the command acts as a
+			common facade for the individual distribution commands.
+
 Special out-of-the-box spark style customizations:
     --as colorbox-calendar	6 Emoji-boxes from purple to red
     --as green-calendar		shades of green small boxes
@@ -86,6 +91,7 @@ if [ -t 1 ]; then
     fi
 fi
 isForceLegends=
+forceRange=
 typeset -a distributionArgs=()
 typeset -a distributionOverTheYearArgs=()
 typeset -a distributionOverTheMonthArgs=()
@@ -117,6 +123,7 @@ do
 
 	--force-legends)
 			shift; isForceLegends=t;;
+	--over)		shift; forceRange="${1:?}"; shift;;
 
 	--)		distributionArgs+=("$1"); shift; break;;
 	*)		distributionArgs+=("$1"); shift;;
@@ -134,8 +141,9 @@ readarray -t dates
 
 firstDate="${dates[0]%% *}"
 lastDate="${dates[-1]%% *}"
-monthDiff="$(datediff --output months "$firstDate" "$lastDate")" || exit $?
-if [ $monthDiff -gt $DISTRIBUTIONOVERAUTORANGE_MAX_GRAPHED_MONTHS ]; then
+[ -n "$forceRange" ] || monthDiff="$(datediff --output months "$firstDate" "$lastDate")" || exit $?
+if [ "$forceRange" = 'year' -o "$forceRange" = 'year-weekly' ] || { [ -z "$forceRange" ] && [ $monthDiff -gt $DISTRIBUTIONOVERAUTORANGE_MAX_GRAPHED_MONTHS ]; }; then
+    [ "$forceRange" = 'year-weekly' ] && isWeekly=t
     typeset -a distributionOverTheYearExtractFieldArgs=(--graph-field 1)
     [ "$isForceLegends" ] || ! isSingleRange 1 || \
 	if [ "$isWeekly" ] || contains --footer-legend "${distributionArgs[@]}"; then
@@ -158,8 +166,8 @@ if [ $monthDiff -gt $DISTRIBUTIONOVERAUTORANGE_MAX_GRAPHED_MONTHS ]; then
 		distributionFooterArgs=(--footer-every "$DISTRIBUTIONOVERAUTORANGE_YEAR_DAILY_FOOTER_EVERY")
 	fi
 else
-    dayDiff="$(datediff --output days "$firstDate" "$lastDate")" || exit $?
-    if [ $dayDiff -gt $DISTRIBUTIONOVERAUTORANGE_MAX_GRAPHED_DAYS ]; then
+    [ -n "$forceRange" ] || dayDiff="$(datediff --output days "$firstDate" "$lastDate")" || exit $?
+    if [ "$forceRange" = 'month' ] || { [ -z "$forceRange" ] && [ $dayDiff -gt $DISTRIBUTIONOVERAUTORANGE_MAX_GRAPHED_DAYS ]; }; then
 	typeset -a distributionOverTheMonthExtractFieldArgs=(--graph-field 2 --footer-field 1)
 	[ "$isForceLegends" ] || ! isSingleRange 1 2 || distributionOverTheMonthExtractFieldArgs=()
 
@@ -170,7 +178,7 @@ else
 	[ ${#distributionRenderArgs[@]} -gt 0 ] || distributionRenderArgs=("${monthDistributionDefaultRenderArgs[@]}")
 	[ ${#distributionFooterArgs[@]} -gt 0 ] || [ -z "$DISTRIBUTIONOVERAUTORANGE_MONTH_FOOTER_EVERY" ] || \
 	    distributionFooterArgs=(--footer-every "$DISTRIBUTIONOVERAUTORANGE_MONTH_FOOTER_EVERY")
-    else
+    elif [ "$forceRange" = 'day' ] || [ -z "$forceRange" ]; then
 	typeset -a distributionOverTheDayExtractFieldArgs=(--graph-field 3 --footer-field 2)
 	[ "$isForceLegends" ] || ! isSingleRange 1 2 3 || distributionOverTheDayExtractFieldArgs=()
 	[ ${#distributionOverTheDayHourArgs[@]} -gt 0 ] || distributionOverTheDayHourArgs=(--first-hour 6 --last-hour 23)
@@ -183,6 +191,11 @@ else
 	[ ${#distributionRenderArgs[@]} -gt 0 ] || distributionRenderArgs=("${dayDistributionDefaultRenderArgs[@]}")
 	[ ${#distributionFooterArgs[@]} -gt 0 ] || [ -z "$DISTRIBUTIONOVERAUTORANGE_DAY_FOOTER_EVERY" ] || \
 	    distributionFooterArgs=(--footer-every "$DISTRIBUTIONOVERAUTORANGE_DAY_FOOTER_EVERY")
+    else
+	echo >&2 "ERROR: Invalid value for --over: $forceRange"
+	echo >&2
+	printUsage "$0" >&2
+	exit 2
     fi
 fi
 
