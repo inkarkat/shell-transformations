@@ -155,7 +155,7 @@ getMinMaxLegendArgs()
 
 hasHours()
 {
-    { IFS=$'\n' read -r firstHours; IFS=$'\n' read -r lastHours; } < <(printf '%s\n' "$firstDate" "$lastDate" | field "${distributionFieldSeparatorArgs[@]}" 4 '' 5)
+    { IFS=$'\n' read -r firstHours; IFS=$'\n' read -r lastHours; } < <(printf '%s\n' "${dates[0]}" "${dates[-1]}" | field "${distributionFieldSeparatorArgs[@]}" 4 '' 5)
     [ -n "$firstHours" -o -n "$lastHours" ]
 }
 
