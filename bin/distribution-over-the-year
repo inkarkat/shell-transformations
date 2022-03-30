@@ -17,7 +17,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| [DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL='-'] [DISTRIBUTIONOVERTHEYEAR_BORDERS='/ \ ( ) L J'] [DISTRIBUTIONOVERTHEYEAR_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer|--final-footer-only|--footer-only-on-change|--footer-every N] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [-F|--field-separator FS] [--weekly] [--year YYYY |--year-field Y] [--month-field M] [--day-field D] [--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| [DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL='-'] [DISTRIBUTIONOVERTHEYEAR_BORDERS='/ \ ( ) L J'] [DISTRIBUTIONOVERTHEYEAR_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer|--final-footer-only|--footer-only-on-change|--footer-every N] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [-F|--field-separator FS] [--weekly] [--year YYYY |--year-field Y] [--month-field M] [--day-field D] [--count-field C [--default-count C|""]] [--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -67,6 +67,12 @@ HELPDESCRIPTION
     --year-field Y	Take the year from column Y instead of 1.
     --month-field M	Take the month of the year from column M instead of 2.
     --day-field D	Take the day of the year from column D instead of 3.
+    --count-field C	Increment the number of dates by the value found in
+			column C (instead of by 1); i.e. the data already is
+			pre-accumulated.
+    --default-count C	Use a count of C if the count column does not contain an
+			integer or is missing. Suppresses the warning that would
+			normally be given then.
     --split-graph-field N
 			Whenever the non-empty value of column N changes, start
 			a new graph. If you want to graph every year
@@ -86,6 +92,8 @@ year=
 yearFieldNr=1
 monthFieldNr=2
 dayFieldNr=3
+countFieldNr=
+defaultCount=none
 isFooter=t
 finalFooter=
 typeset -a footerCapture=()
@@ -115,6 +123,9 @@ do
 	--year-field)  shift; yearFieldNr="${1:?}"; shift;;
 	--month-field)  shift; monthFieldNr="${1:?}"; shift;;
 	--day-field)    shift; dayFieldNr="${1:?}"; shift;;
+	--count-field)	shift; countFieldNr="$1"; shift;;
+	--default-count)
+			shift; defaultCount="$1"; shift;;
 	--split-graph-field)
 			shift; splitFieldNrs+=("$1"); shift;;
 	--as)		sparkArgs+=("$1"); shift
@@ -162,6 +173,9 @@ elif [ $monthFieldNr -eq $dayFieldNr ]; then
 elif [ $yearFieldNr -eq $dayFieldNr ]; then
     echo >&2 'ERROR: Day field cannot be equal to year field.'
     exit 2
+elif [ -n "$countFieldNr" ] && [ $countFieldNr -eq $yearFieldNr -o $countFieldNr -eq $monthFieldNr -o $countFieldNr -eq $dayFieldNr ]; then
+    echo >&2 'ERROR: Count field cannot be equal to year / month / day fields.'
+    exit 2
 fi
 
 IFS=$'\n'
@@ -176,6 +190,8 @@ tally()
 	-v "yearFieldNr=$yearFieldNr" \
 	-v "monthFieldNr=$monthFieldNr" \
 	-v "dayFieldNr=$dayFieldNr" \
+	-v "countFieldNr=$countFieldNr" \
+	-v "defaultCount=$defaultCount" \
 	-v "splitFieldNrList=${splitFieldNrs[*]//\\/\\\\}" \
 	-v "emptyCell=${DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL//\\/\\\\}" \
 '
@@ -276,7 +292,18 @@ function render(v)
 
 	slot = dayOfYear + dayOfWeekOffset
     }
-    count[slot] += 1
+
+    if (countFieldNr == "") {
+	count[slot] += 1
+    } else if ($countFieldNr ~ /^-?[[:digit:]]+$/) {
+	count[slot] += int($countFieldNr)
+    } else if (defaultCount != "none") {
+	if (defaultCount != "") {
+	    count[slot] += defaultCount
+	}
+    } else {
+	printf("%s count in line %d: %s\n", ($countFieldNr == "" ? "Missing" : "Invalid"), NR, $0) > "/dev/stderr"
+    }
 }
 END {
     printSection()

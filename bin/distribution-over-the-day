@@ -17,7 +17,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '11:01\\\\n11:30\\\\n12:00\\\\n...'| [DISTRIBUTIONOVERTHEDAY_EMPTY_CELL='-'] [DISTRIBUTIONOVERTHEDAY_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEDAY_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer|--final-footer-only|--footer-only-on-change|--footer-every N] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [-F|--field-separator FS] [--hour-field N] [--minute-field M] [--first-hour HH] [--last-hour HH] [--slots-per-hour N] [--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '11:01\\\\n11:30\\\\n12:00\\\\n...'| [DISTRIBUTIONOVERTHEDAY_EMPTY_CELL='-'] [DISTRIBUTIONOVERTHEDAY_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEDAY_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer|--final-footer-only|--footer-only-on-change|--footer-every N] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [-F|--field-separator FS] [--hour-field N] [--minute-field M] [--first-hour HH] [--last-hour HH] [--slots-per-hour N] [--count-field C [--default-count C|""]] [--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -68,6 +68,12 @@ HELPDESCRIPTION
 			values).
     --last-hour HH	End the distribution after HH:59 (omitting any later
 			values).
+    --count-field C	Increment the number of dates by the value found in
+			column C (instead of by 1); i.e. the data already is
+			pre-accumulated.
+    --default-count C	Use a count of C if the count column does not contain an
+			integer or is missing. Suppresses the warning that would
+			normally be given then.
     --slots-per-hour N	Divide each hour into N slots (comprising 60 / N
 			minutes); default is 4 / 15 minutes.
     --split-graph-field N
@@ -89,6 +95,8 @@ hourFieldNr=1
 minuteFieldNr=2
 firstHour=
 lastHour=
+countFieldNr=
+defaultCount=none
 isFooter=t
 finalFooter=
 typeset -a footerCapture=()
@@ -120,6 +128,9 @@ do
 	--last-hour)	shift; lastHour="$1"; shift;;
 	--slots-per-hour)
 			shift; slotNum="$1"; shift;;
+	--count-field)	shift; countFieldNr="$1"; shift;;
+	--default-count)
+			shift; defaultCount="$1"; shift;;
 	--split-graph-field)
 			shift; splitFieldNrs+=("$1"); shift;;
 	--as)		sparkArgs+=("$1"); shift
@@ -157,6 +168,9 @@ done
 if [ $hourFieldNr -eq $minuteFieldNr ]; then
     echo >&2 'ERROR: Minute field cannot be equal to hour field.'
     exit 2
+elif [ -n "$countFieldNr" ] && [ $countFieldNr -eq $hourFieldNr -o $countFieldNr -eq $minuteFieldNr ]; then
+    echo >&2 'ERROR: Count field cannot be equal to hour / minute fields.'
+    exit 2
 fi
 
 IFS=$'\n'
@@ -171,6 +185,8 @@ tally()
 	-v "firstHour=$firstHour" \
 	-v "lastHour=$lastHour" \
 	-v "slotNum=$slotNum" \
+	-v "countFieldNr=$countFieldNr" \
+	-v "defaultCount=$defaultCount" \
 	-v "splitFieldNrList=${splitFieldNrs[*]//\\/\\\\}" \
 	-v "emptyCell=${DISTRIBUTIONOVERTHEDAY_EMPTY_CELL//\\/\\\\}" \
 '
@@ -244,7 +260,18 @@ function render(v)
     if (lastReportedHour == "" || lastReportedHour < hour) lastReportedHour = hour
 
     slot = int(hour * slotNum + int($minuteFieldNr) * slotNum / 60)
-    count[slot] += 1
+
+    if (countFieldNr == "") {
+	count[slot] += 1
+    } else if ($countFieldNr ~ /^-?[[:digit:]]+$/) {
+	count[slot] += int($countFieldNr)
+    } else if (defaultCount != "none") {
+	if (defaultCount != "") {
+	    count[slot] += defaultCount
+	}
+    } else {
+	printf("%s count in line %d: %s\n", ($countFieldNr == "" ? "Missing" : "Invalid"), NR, $0) > "/dev/stderr"
+    }
 }
 END {
     printSection()
