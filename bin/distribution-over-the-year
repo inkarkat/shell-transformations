@@ -341,7 +341,7 @@ printDailyDistribution()
 	for ((i = 0; i < 7; i++))
 	do
 	    IFS=$'\n' read -r weekdayData || break
-	    wholeWeekData="${wholeWeekData}${wholeWeekData:+$',\n,'}${weekdayData}"
+	    wholeWeekData+="${wholeWeekData:+$',\n,'}${weekdayData}"
 	done
 
 	local sparkEmptyOverride; [ -n "${SPARK_EMPTY+t}" ] || sparkEmptyOverride='SPARK_EMPTY="$DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL"'
@@ -436,7 +436,7 @@ printWeeklyDistribution()
 
 	    let footerCount+=1
 	else
-	    local completeLegend="$graphLegend"; [ -n "$graphLegend" -a -n "$footerLegend" ] && completeLegend="${completeLegend} "; completeLegend="${completeLegend}${footerLegend}"
+	    local completeLegend="$graphLegend"; [ -n "$graphLegend" -a -n "$footerLegend" ] && completeLegend+=' '; completeLegend+="$footerLegend"
 	    printf "%s%${legendWidth:+-}${legendWidth}${legendWidth:+.}${legendWidth}s%s%s\\n" "$L" "$completeLegend" "$R" "$renderedDistribution"
 	fi
     done
