@@ -4,7 +4,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" '[-l|--legend] [-u|--unit UNIT] FILE [...] [-?|-h|--help]'
+    printf 'Usage: [STATISTICS_PRECISION=N] %q %s\n' "$(basename "$1")" '[-l|--legend] [-u|--unit UNIT] FILE [...] [-?|-h|--help]'
     printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[...]'
     echo
     printf 'Usage: %q %s\n' "$(basename "$1")" '-L|--legend-only [-u|--unit UNIT]'
@@ -22,8 +22,9 @@ printLongUsage()
     # It is printed to stdout to allow paging with 'more'.
     cat <<HELPDESCRIPTION
 Analyzes the per-line numbers from standard input and prints statistical values:
-min-max, median and mean values, first and third quartile, standard deviation,
-[unique] count and sum.
+min-max, median and mean values, first and third quartile, standard deviation
+(all with STATISTICS_PRECISION digits after the decimal point), [unique] count
+and sum.
 HELPDESCRIPTION
     echo
     printShortUsage "$1"
