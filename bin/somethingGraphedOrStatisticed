@@ -1,0 +1,35 @@
+#!/bin/bash source-this-script
+
+SOMETHINGGRAPHEDORSTATISTICED_SHORT_USAGE='[(-g|--graph|-s|--statistics) [-p|--pause|-e|--every P[SUFFIX][ADJUSTMENT]]]'
+
+SOMETHINGGRAPHEDORSTATISTICED_LONG_USAGE="$(cat <<EOF
+    --graph|-g		Continuously print a one-line sparkline graph of
+			${SOMETHINGGRAPHEDORSTATISTICED_WHAT:?}, updated every second.
+    --statistics|-s	Continuously print one-line statistics (min-max, median
+			and mean values, first and third quartile, standard
+			deviation, number of [unique] samples) of
+			${SOMETHINGGRAPHEDORSTATISTICED_WHAT:?}, updated every second.
+    --every|-e|--pause|-p P[SUFFIX][ADJUSTMENT]
+			Update every P / with a pause of P between each update.
+EOF
+)"
+
+: ${SOMETHINGGRAPHEDORSTATISTICED_SPARK_ARGS=--min 0 --max 100}
+
+handleSomethingGraphedOrStatisticed()
+{
+    case "$1" in
+	--graph|-g)	shift
+			printf -v quotedCommand %q "${SOMETHINGGRAPHEDORSTATISTICED_COMMAND:?}"
+			quotedRepeatArgs=; if [ $# -gt 0 ]; then printf -v quotedRepeatArgs ' %q' "$@"; fi
+			forever --command "repeat${quotedRepeatArgs} --count ${COLUMNS:-80} --command $quotedCommand; printf \\\\e[1G\\\\n" | \
+			    spark $SOMETHINGGRAPHEDORSTATISTICED_SPARK_ARGS
+			exit $?
+			;;
+	--statistics|-s)
+			shift
+			sameScreenPosition --first
+			STATISTICS_PRECISION=0 exec repeat "$@" --command "${SOMETHINGGRAPHEDORSTATISTICED_COMMAND:?} | withConcatenatedInput --id wlanstrength-$$ | sameScreenPosition --subsequent -- statistics"
+			;;
+    esac
+}
