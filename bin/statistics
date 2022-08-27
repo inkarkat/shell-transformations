@@ -4,7 +4,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" '[-l|--legend] [-u|--unit UNIT] [-?|-h|--help]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[-l|--legend] [-u|--unit UNIT] FILE [...] [-?|-h|--help]'
     printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[...]'
     echo
     printf 'Usage: %q %s\n' "$(basename "$1")" '-L|--legend-only [-u|--unit UNIT]'
@@ -69,23 +69,31 @@ do
 	*)		break;;
     esac
 done
-
 legendUnit=
 if [ "$isLegendOnly" ]; then
-    [ "$unit" ] && legendUnit=" (${unit})"
+    [ -z "$unit" ] || legendUnit=" (${unit})"
     printf "$legend" "$legendUnit" "$legendUnit" "$legendUnit" "$legendUnit" "$legendUnit" "$legendUnit" "$legendUnit" "$legendUnit"
     exit
 fi
 
-IFS=$'\t' read -r min q1 median mean q3 max sstdev sum num unique < <(datamash min 1 q1 1 median 1 mean 1 q3 1 max 1 sstdev 1 sum 1 count 1 countunique 1)
+analyze()
+{
+    IFS=$'\t' read -r min q1 median mean q3 max sstdev sum num unique < <(datamash min 1 q1 1 median 1 mean 1 q3 1 max 1 sstdev 1 sum 1 count 1 countunique 1)
 
-if [ "$isAddLegend" ]; then
-    legendUnit=" (${unit})"
-    unit=
-fi
+    if [ "$isAddLegend" ]; then
+	legendUnit=" (${unit})"
+	unit=
+    fi
 
-printf "$format" "$min" "$unit" "$q1" "$unit" "$median" "$unit" "$mean" "$unit" "$q3" "$unit" "$max" "$unit" "$sstdev" "$unit" "$sum" "$unit" "$num" "$unique"
+    printf "$format" "$min" "$unit" "$q1" "$unit" "$median" "$unit" "$mean" "$unit" "$q3" "$unit" "$max" "$unit" "$sstdev" "$unit" "$sum" "$unit" "$num" "$unique"
 
-if [ "$isAddLegend" ]; then
-    printf "$legend" "$legendUnit" "$legendUnit" "$legendUnit" "$legendUnit" "$legendUnit" "$legendUnit" "$legendUnit" "$legendUnit"
+    if [ "$isAddLegend" ]; then
+	printf "$legend" "$legendUnit" "$legendUnit" "$legendUnit" "$legendUnit" "$legendUnit" "$legendUnit" "$legendUnit" "$legendUnit"
+    fi
+}
+
+if [ $# -eq 0 ]; then
+    analyze
+else
+    cat -- "$@" | analyze
 fi
