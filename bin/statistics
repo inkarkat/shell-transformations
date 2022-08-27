@@ -4,8 +4,10 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" '[-L|--legend-only] [-u|--unit UNIT] [-?|-h|--help]'
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[-l|--legend] [-u|--unit UNIT]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[-l|--legend] [-u|--unit UNIT] [-?|-h|--help]'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[...]'
+    echo
+    printf 'Usage: %q %s\n' "$(basename "$1")" '-L|--legend-only [-u|--unit UNIT]'
 }
 printUsage()
 {
