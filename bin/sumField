@@ -69,6 +69,6 @@ NR > 1 {
 }
 
 END {
-    print sum
+    if (sum != "") print sum
 }
 ' "${awkArgs[@]}"
