@@ -1,13 +1,14 @@
 #!/bin/bash
+shopt -qs extglob
 
 printUsage()
 {
     cat <<HELPTEXT
-Add up numbers in field N / field with HEADER-NAME (implies --has-header), and
-print the sum.
+Add up numbers in field N (-N counted from behind) / field with HEADER-NAME
+(implies --has-header), and print the sum.
 HELPTEXT
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-F|--field-separator FS] N|HEADER-NAME'
-    printf 'Usage: %q %s\n' "$(basename "$1")" '-i|--input FILESPEC [...] N|HEADER-NAME [-?|-h|--help]'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-F|--field-separator FS] [-]N|HEADER-NAME'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '-i|--input FILESPEC [...] [-]N|HEADER-NAME [-?|-h|--help]'
 }
 
 typeset -a fsArgs
@@ -21,6 +22,7 @@ do
 	--input|-i)		shift; awkArgs+=("$1"); shift;;
 	--field-separator|-F)	shift; fsArgs=(-F "$1"); shift;;
 	--)		shift; break;;
+	-+([0-9]))	break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
 	*)		break;;
     esac
@@ -36,16 +38,20 @@ awk \
     -v "hasHeader=$hasHeader" \
     -v "aggregateFieldSpecifier=${1:?}" \
 '
-function count()
+function getFieldNr()
 {
-    if (aggregateFieldNr > NF) return
-    sum += $aggregateFieldNr
+    return (aggregateFieldNr ~ /^-/ ? NF + aggregateFieldNr + 1 : aggregateFieldNr)
+}
+function count(      fieldNr)
+{
+    fieldNr = getFieldNr()
+    if (fieldNr > NF) return
+    sum += $fieldNr
 }
 NR == 1 {
-    if (aggregateFieldSpecifier ~ /^[0-9]+/) {
+    if (aggregateFieldSpecifier ~ /^-?[0-9]+/) {
 	aggregateFieldNr = aggregateFieldSpecifier
-
-	if (aggregateFieldNr <= 0 || aggregateFieldNr > NF) {
+	if (getFieldNr() <= 0 || getFieldNr() > NF) {
 	    printf "ERROR: No field number %d in\n%s\n", aggregateFieldNr, $0 > "/dev/stderr"
 	    exit 3
 	}
@@ -69,6 +75,6 @@ NR > 1 {
 }
 
 END {
-    print sum
+    if (sum != "") print sum
 }
 ' "${awkArgs[@]}"
