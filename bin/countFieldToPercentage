@@ -1,0 +1,103 @@
+#!/bin/bash
+shopt -qs extglob
+
+printUsage()
+{
+    cat <<HELPTEXT
+Convert the numbers in field N (-N counted from behind) / field with HEADER-NAME
+(implies --has-header) to their percentage proportion based on the total sum of
+that field.
+HELPTEXT
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-F|--field-separator FS] [-]N|HEADER-NAME'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '-i|--input FILESPEC [...] [-]N|HEADER-NAME [-?|-h|--help]'
+}
+
+typeset -a fsArgs
+typeset -a awkArgs=()
+hasHeader=
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+	--has-header)	shift; hasHeader=t;;
+	--input|-i)		shift; awkArgs+=("$1"); shift;;
+	--field-separator|-F)	shift; fsArgs=(-F "$1"); shift;;
+	--)		shift; break;;
+	-+([0-9]))	break;;
+	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		break;;
+    esac
+done
+if [ $# -eq 0 ]; then
+    printUsage >&2 "$0"
+    exit 2
+fi
+
+
+awk \
+    "${fsArgs[@]}" \
+    -v "hasHeader=$hasHeader" \
+    -v "aggregateFieldSpecifier=${1:?}" \
+'
+function isNumber(x)
+{
+    return (x + 0 == x)
+}
+function getFieldNr()
+{
+    return (aggregateFieldNr ~ /^-/ ? NF + aggregateFieldNr + 1 : aggregateFieldNr)
+}
+function count(      fieldNr)
+{
+    fieldNr = getFieldNr()
+    if (fieldNr <= NF && isNumber($fieldNr)) {
+	sum += $fieldNr
+	values[NR] = $fieldNr
+	$fieldNr = "\n"    # We can use newline for the placeholder, as that cannot be part of a single line.
+    }
+
+    records[NR] = $0
+}
+NR == 1 {
+    if (aggregateFieldSpecifier ~ /^-?[0-9]+/) {
+	aggregateFieldNr = aggregateFieldSpecifier
+	if (getFieldNr() <= 0 || getFieldNr() > NF) {
+	    printf "ERROR: No field number %d in\n%s\n", aggregateFieldNr, $0 > "/dev/stderr"
+	    NR = 0	# Do not print first line.
+	    exit 3
+	}
+
+	if (! hasHeader) {
+	    # No header with N; need to aggregate first line, too.
+	    count()
+	}
+    } else {
+	for (aggregateFieldNr = 1; aggregateFieldNr <= NF; aggregateFieldNr++) {
+	    if ($aggregateFieldNr == aggregateFieldSpecifier) {
+		count()
+		next
+	    }
+	}
+
+	printf "ERROR: Could not locate field named %s in\n%s\n", aggregateFieldSpecifier, $0 > "/dev/stderr"
+	NR = 0	# Do not print first line.
+	exit 3
+    }
+}
+
+NR > 1 {
+    count()
+}
+
+END {
+    for (i = 1; i <= NR; ++i) {
+	if (values[i] == "") {
+	    print records[i]
+	} else {
+	    percentage = 100 * values[i] / sum
+	    renderedPercentage = (percentage < 10 ? sprintf("%4.2g%%", percentage) : sprintf("%4d%%", percentage))
+	    print gensub(/\n/, renderedPercentage, 1, records[i])
+	}
+    }
+}
+' "${awkArgs[@]}"
