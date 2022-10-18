@@ -58,6 +58,9 @@ function count(      fieldNr)
 
     records[NR] = $0
 }
+BEGIN {
+    width = (FS == " " ? 4 : "")
+}
 NR == 1 {
     if (aggregateFieldSpecifier ~ /^-?[0-9]+/) {
 	aggregateFieldNr = aggregateFieldSpecifier
@@ -95,7 +98,7 @@ END {
 	    print records[i]
 	} else {
 	    percentage = 100 * values[i] / sum
-	    renderedPercentage = (percentage < 10 ? sprintf("%4.2g%%", percentage) : sprintf("%4d%%", percentage))
+	    renderedPercentage = (percentage < 10 ? sprintf("%" width ".2g%%", percentage) : sprintf("%" width "d%%", percentage))
 	    print gensub(/\n/, renderedPercentage, 1, records[i])
 	}
     }
