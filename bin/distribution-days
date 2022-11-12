@@ -240,22 +240,26 @@ function printSection(      dayWidth, h, result, s)
 
     if (isReversed) {
 	print slotToDate(maxSlot)
-	print slotToDate(minSlot)
 
 	result = render(count[maxSlot])
 	for (s = maxSlot - 1; s >= minSlot; --s) {
 	    result = result "," render(count[s])
 	}
+	print result
+
+	print slotToDate(minSlot)
     } else {
 	print slotToDate(minSlot)
-	print slotToDate(maxSlot)
 
 	result = render(count[minSlot])
 	for (s = minSlot + 1; s <= maxSlot; ++s) {
 	    result = result "," render(count[s])
 	}
+	print result
+
+	print slotToDate(maxSlot)
     }
-    print result; delete count
+    delete count
     if (baseSlot > 0) {
 	minSlot = maxSlot = baseSlot
     } else {
@@ -323,13 +327,13 @@ printDistribution()
 	# Each section consists of 2 lines:
 	# - legend for graph
 	# - start date
-	# - end date
 	# - comma-separated data
+	# - end date
 	local graphLegendFromData; IFS=$'\n' read -r graphLegendFromData || break
 	local graphLegend="${graphLegendFromData:-$graphLegendText}"
 	local startDate; IFS=$'\n' read -r startDate || break
-	local endDate; IFS=$'\n' read -r endDate || break
 	local data; IFS=$'\n' read -r data || break
+	local endDate; IFS=$'\n' read -r endDate || break
 
 	local sparkEmptyOverride; [ -n "${SPARK_EMPTY+t}" ] || sparkEmptyOverride='SPARK_EMPTY="$DISTRIBUTIONDAYS_EMPTY_CELL"'
 	local renderedDistribution; renderedDistribution="$(eval "$sparkEmptyOverride" 'spark --min 0 "${sparkArgs[@]}" "$data"')" && status=0 || exit $?
