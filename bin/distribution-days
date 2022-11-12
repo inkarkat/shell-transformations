@@ -219,7 +219,7 @@ BEGIN {
 		exit(3)
 	    }
 	}
-	baseSlot = (baseEpoch / 86400) * slotNum + (slotNum > 1 ? int(slotNum / 2) - 1 : 0) # Choose a slot in the middle of the day.
+	baseSlot = int((baseEpoch / 86400) * slotNum + (slotNum > 1 ? int(slotNum / 2) : 0)) # Choose a slot in the middle of the day.
 	minSlot = maxSlot = baseSlot
     }
 
@@ -314,7 +314,7 @@ function render(v)
 	printf("Invalid date in line %d: %s\n", NR, $0) > "/dev/stderr"
 	next
     }
-    slot = (epoch / 86400) * slotNum + (slotNum > 1 ? int($hourFieldNr) * slotNum / 24 : 0)
+    slot = int((epoch / 86400) * slotNum + (slotNum > 1 ? int($hourFieldNr) * slotNum / 24 : 0))
     if (slot < minSlot) {
 	minSlot = slot
     } else if (slot > maxSlot) {
