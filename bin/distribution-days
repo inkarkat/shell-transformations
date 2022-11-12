@@ -34,8 +34,8 @@ printLongUsage()
     cat <<HELPDESCRIPTION
 Print the distribution of the number of dates (and optionally times of day) that
 fall into a certain slot (1 day by default) linearly; i.e. from the first until
-the last day encountered. Requires the day of the month in the third column of
-the data (after year and month); anything after that is ignored.
+the last day encountered. Requires the month and day of the year in the second /
+third column of the data (after year); anything after that is ignored.
 HELPDESCRIPTION
     echo
     printShortUsage "$1"
