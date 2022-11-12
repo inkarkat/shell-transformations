@@ -315,7 +315,8 @@ function render(v)
     slot = int((epoch / 86400) * slotNum + (slotNum > 1 ? int($hourFieldNr) * slotNum / 24 : 0))
     if (slot < minSlot) {
 	minSlot = slot
-    } else if (slot > maxSlot) {
+    }
+    if (slot > maxSlot) {
 	maxSlot = slot
     }
 
