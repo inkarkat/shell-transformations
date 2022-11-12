@@ -359,9 +359,10 @@ printDistribution()
 	local renderedDistribution; renderedDistribution="$(eval "$sparkEmptyOverride" 'spark --min 0 "${sparkArgs[@]}" "$data"')" && status=0 || exit $?
 
 	local legendWidth=$DISTRIBUTIONDAYS_LEGEND_LENGTH
+	local legendStartDateSeparator=''; [ -n "$graphLegend" -a -n "$startDate" ] && legendStartDateSeparator=' '
 
 	local B="$DISTRIBUTIONDAYS_COLOR_BORDER" L="$DISTRIBUTIONDAYS_COLOR_LEGEND" U="$DISTRIBUTIONDAYS_COLOR_UNITS" R="$DISTRIBUTIONDAYS_COLOR_RESET"
-	printf "%s%${legendWidth:+-}${legendWidth}${legendWidth:+.}${legendWidth}s%s%s%s%s%s%s\\n" "${graphLegend:+$L}" "${graphLegend}" "${graphLegend:+$R}" "${startDate:+$U}${startDate}${startDate:+$R}" "${B}${borders[0]}${R}" "$renderedDistribution" "${B}${borders[1]}${R}" "${endDate:+$U}${endDate}${endDate:+$R}"
+	printf "%s%${legendWidth:+-}${legendWidth}${legendWidth:+.}${legendWidth}s%s%s%s%s%s%s%s\\n" "${graphLegend:+$L}" "${graphLegend}" "${graphLegend:+$R}" "$legendStartDateSeparator" "${startDate:+$U}${startDate}${startDate:+$R}" "${B}${borders[0]}${R}" "$renderedDistribution" "${B}${borders[1]}${R}" "${endDate:+$U}${endDate}${endDate:+$R}"
     done
 
     return $status
