@@ -18,7 +18,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| [DISTRIBUTIONDAYS_EMPTY_CELL='-'] [DISTRIBUTIONDAYS_BORDERS='< >'] [DISTRIBUTIONDAYS_DATE_FORMAT='%Y-%m-%d'] [DISTRIBUTIONDAYS_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--base-date today|"YYYY MM DD"] [--graph-legend TEXT] [--graph-field N] [--no-start-date] [--no-end-date] [-F|--field-separator FS] [--year YYYY |--year-field Y] [--month-field M] [--day-field N] [--slots-per-day N [--hour-field M]] [--count-field C [--default-count C|""]] [--split-days C|--split-graph-field N [--split-graph-field ...]] [--reversed] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| [DISTRIBUTIONDAYS_EMPTY_CELL='-'] [DISTRIBUTIONDAYS_BORDERS='< >'] [DISTRIBUTIONDAYS_DATE_FORMAT='%%Y-%%m-%%d'] [DISTRIBUTIONDAYS_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--base-date today|"YYYY MM DD"] [--graph-legend TEXT] [--graph-field N] [--no-start-date] [--no-end-date] [-F|--field-separator FS] [--year YYYY |--year-field Y] [--month-field M] [--day-field N] [--slots-per-day N [--hour-field M]] [--count-field C [--default-count C|""]] [--split-days C|--split-graph-field N [--split-graph-field ...]] [--reversed] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -101,7 +101,7 @@ hourFieldNr=4
 countFieldNr=
 defaultCount=none
 slotNum=1
-splitDays=
+splitDays=0
 typeset -a splitFieldNrs=()
 isReversed=
 typeset -a sparkArgs=()
@@ -224,6 +224,7 @@ BEGIN {
     }
 
     splitFieldNrNum = split(splitFieldNrList, splitFieldNrs, "\n")
+    splitSlots = (splitDays > 0 ? splitDays * slotNum : 2 ^ PREC)
 
     emptyCellWithoutAnsiEscapes = gensub(/\x1b\[[0-9:;]*[mK]/, "", "g", emptyCell)
     cellWidth = (emptyCellWithoutAnsiEscapes == "　" ? 2 : length(emptyCellWithoutAnsiEscapes)) # Rudimentary handling of fullwidth characters (just U+3000 IDEOGRAPHIC SPACE).
@@ -232,32 +233,51 @@ function slotToDate(slot)
 {
     return strftime(dateFormat, slot * 86400 / slotNum)
 }
-function printSection(      dayWidth, h, result, s)
+function printSection(      sectionLegendSpacer, sectionLegend, result, resultCnt, s)
 {
     if (length(count) == 0) return
 
-    print graphLegend; graphLegend = ""
+    sectionLegendSpacer = gensub(/./, " ", "g", graphLegend)
+    sectionLegend = graphLegend; graphLegend = ""
 
     if (isReversed) {
-	print slotToDate(maxSlot)
-
-	result = render(count[maxSlot])
-	for (s = maxSlot - 1; s >= minSlot; --s) {
-	    result = result "," render(count[s])
+	for (; maxSlot >= minSlot; --maxSlot) {
+	    if (resultCnt == 0) {
+		print sectionLegend; sectionLegend = sectionLegendSpacer
+		print slotToDate(maxSlot)
+		result = render(count[maxSlot])
+	    } else {
+		result = result "," render(count[maxSlot])
+	    }
+	    if (++resultCnt == splitSlots) {
+		print result
+		resultCnt = 0
+		print slotToDate(maxSlot)
+	    }
 	}
-	print result
-
-	print slotToDate(minSlot)
+	if (resultCnt > 0) {
+	    print result
+	    print slotToDate(minSlot)
+	}
     } else {
-	print slotToDate(minSlot)
-
-	result = render(count[minSlot])
-	for (s = minSlot + 1; s <= maxSlot; ++s) {
-	    result = result "," render(count[s])
+	for (; minSlot <= maxSlot; ++minSlot) {
+	    if (resultCnt == 0) {
+		print sectionLegend; sectionLegend = sectionLegendSpacer
+		print slotToDate(minSlot)
+		result = render(count[minSlot])
+	    } else {
+		result = result "," render(count[minSlot])
+	    }
+	    if (++resultCnt == splitSlots) {
+		print result
+		resultCnt = 0
+		print slotToDate(minSlot)
+	    }
 	}
-	print result
-
-	print slotToDate(maxSlot)
+	if (resultCnt > 0) {
+	    print result
+	    print slotToDate(maxSlot)
+	}
     }
     delete count
     if (baseSlot > 0) {
