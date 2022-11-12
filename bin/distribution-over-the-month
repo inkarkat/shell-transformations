@@ -161,7 +161,7 @@ done
 if [ $dayFieldNr -eq $hourFieldNr ]; then
     echo >&2 'ERROR: Hour field cannot be equal to day field.'
     exit 2
-elif [ -n "$countFieldNr" ] && [ $countFieldNr -eq $dayFieldNr -o $countFieldNr -eq $dayFieldNr ]; then
+elif [ -n "$countFieldNr" ] && [ $countFieldNr -eq $dayFieldNr -o $countFieldNr -eq $hourFieldNr ]; then
     echo >&2 'ERROR: Count field cannot be equal to day / hour fields.'
     exit 2
 fi

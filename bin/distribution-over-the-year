@@ -120,7 +120,7 @@ do
 			shift; separator="${1:?}"; shift;;
 	--weekly)	shift; isWeekly=t;;
 	--year)		shift; year="${1:?}"; shift;;
-	--year-field)  shift; yearFieldNr="${1:?}"; shift;;
+	--year-field)	shift; yearFieldNr="${1:?}"; shift;;
 	--month-field)  shift; monthFieldNr="${1:?}"; shift;;
 	--day-field)    shift; dayFieldNr="${1:?}"; shift;;
 	--count-field)	shift; countFieldNr="$1"; shift;;
