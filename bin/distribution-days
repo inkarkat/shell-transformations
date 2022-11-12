@@ -1,0 +1,346 @@
+#!/bin/bash
+set -o pipefail
+
+: ${DISTRIBUTIONDAYS_EMPTY_CELL= }
+: ${DISTRIBUTIONDAYS_BORDERS=[ ]}
+: ${DISTRIBUTIONDAYS_DATE_FORMAT='%Y-%b-%d'}
+
+: ${DISTRIBUTIONDAYS_COLOR_BORDER=}  # for DISTRIBUTIONDAYS_BORDERS
+: ${DISTRIBUTIONDAYS_COLOR_LEGEND=}  # for the graph legend
+: ${DISTRIBUTIONDAYS_COLOR_UNITS=}   # for the start and end days on the left and right of the chart
+: ${DISTRIBUTIONDAYS_COLOR_RESET=}   # undo the coloring
+
+typeset -a borders=()
+[ -n "$DISTRIBUTIONDAYS_BORDERS" ] && IFS='' read -r -d '' -a borders <<<"${DISTRIBUTIONDAYS_BORDERS// /}"
+[ ${#borders[@]} -gt 0 ] && borders[-1]="${borders[-1]%$'\n'}"
+
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
+    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| [DISTRIBUTIONDAYS_EMPTY_CELL='-'] [DISTRIBUTIONDAYS_BORDERS='< >'] [DISTRIBUTIONDAYS_DATE_FORMAT='%Y-%m-%d'] [DISTRIBUTIONDAYS_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--base-date today|"YYYY MM DD"] [--graph-legend TEXT] [--graph-field N] [--no-start-date] [--no-end-date] [-F|--field-separator FS] [--year YYYY |--year-field Y] [--month-field M] [--day-field N] [--slots-per-day N [--hour-field M]] [--count-field C [--default-count C|""]] [--split-days C|--split-graph-field N [--split-graph-field ...]] [--reversed] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
+}
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
+Print the distribution of the number of dates (and optionally times of day) that
+fall into a certain slot (1 day by default) linearly; i.e. from the first until
+the last day encountered. Requires the day of the month in the third column of
+the data (after year and month); anything after that is ignored.
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    echo
+    cat <<HELPTEXT
+    --base-date today|"YYYY MM DD"
+			Always include today / the passed base date in the
+			graphed range, even if the data does not contain such a
+			date.
+    --graph-legend TEXT	Add TEXT in front of the distribution. This will also be
+			the fallback text if no field value is found.
+    --graph-field N	Add text captured from the first non-empty column N of
+			the input data in front of the distribution.
+    --no-start-date	Do not add the (earliest, latest with --reverse) date at
+			the beginning of the graph.
+    --no-end-date	Do not add the (latest, earliest with --reverse) date at
+			the end of the graph.
+    --field-separator|-F FS
+			Use FS for splitting the data into columns (instead of
+			the default whitespace + [:_/-]).
+    --year YYYY		Assume a static year YYYY.
+    --year-field Y	Take the year from column Y instead of 1.
+    --month-field M	Take the month of the year from column M instead of 2.
+    --day-field D	Take the day of the year from column D instead of 3.
+    --month-field N	Take the day of the month from column N instead of 3.
+    --day-field N	Take the day of the month from column N instead of 3.
+    --count-field C	Increment the number of dates by the value found in
+			column C (instead of by 1); i.e. the data already is
+			pre-accumulated.
+    --default-count C	Use a count of C if the count column does not contain an
+			integer or is missing. Suppresses the warning that would
+			normally be given then.
+    --slots-per-day N	Divide each day into N slots (comprising 24 / N
+			hours); default is 1 slot per day. The hour that is
+			required for more than one slot is taken from the fourth
+			column.
+    --hour-field M	Take the hour of the day from column M instead of 4.
+    --split-days C	Start a new graph after graphing a range of C days.
+    --split-graph-field N
+			Whenever the non-empty value of column N changes, start
+			a new graph. If you want to graph every month
+			separately, pass the year and month columns here.
+    --reversed		Graph newest to oldest dates from left to right, instead
+			of making time pass from left to right. This helps with
+			anchoring multiple historical graphs on the same (latest)
+			base date without having to right-align everything.
+    --as NAME-calendar	Special out-of-the-box spark style customizations.
+HELPTEXT
+}
+
+typeset -a sparkArgs=()
+baseDate=
+graphLegendText=
+graphFieldNr=
+isStartDate=t
+isEndDate=t
+separator='[[:space:]:_/-]'
+year=
+yearFieldNr=1
+monthFieldNr=2
+dayFieldNr=3
+hourFieldNr=4
+countFieldNr=
+defaultCount=none
+slotNum=1
+splitDays=
+typeset -a splitFieldNrs=()
+isReversed=
+typeset -a sparkArgs=()
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--base-date)	shift; baseDate="$1"; shift;;
+	--graph-legend)	shift; graphLegendText="$1"; shift;;
+	--graph-field)	shift; graphFieldNr="$1"; shift;;
+	--no-start-date)
+			shift; isStartDate=;;
+	--no-end-date)
+			shift; isEndDate=;;
+	--field-separator|-F)
+			shift; separator="${1:?}"; shift;;
+	--slots-per-day)
+			shift; slotNum="$1"; shift;;
+	--day-field)    shift; dayFieldNr="${1:?}"; shift;;
+	--hour-field)   shift; hourFieldNr="${1:?}"; shift;;
+	--count-field)	shift; countFieldNr="$1"; shift;;
+	--default-count)
+			shift; defaultCount="$1"; shift;;
+	--split-days)	shift; splitDays="$1"; shift;;
+	--split-graph-field)
+			shift; splitFieldNrs+=("$1"); shift;;
+	--reversed)	shift; isReversed=t;;
+	--as)		sparkArgs+=("$1"); shift
+			case "$1" in
+			    colorbox-calendar)
+				sparkArgs+=(color-fullwidth-boxes)
+				DISTRIBUTIONDAYS_EMPTY_CELL='  '
+				export SPARK_EMPTY_DATA='  '
+				export SPARK_EMPTY=''
+				;;
+			    green-calendar)
+				sparkArgs+=(green-center-boxes)
+				DISTRIBUTIONDAYS_COLOR_LEGEND='[01m'
+				DISTRIBUTIONDAYS_COLOR_BORDER='[38;5;241m'
+				DISTRIBUTIONDAYS_COLOR_UNITS='[38;5;241m'
+				DISTRIBUTIONDAYS_COLOR_RESET='[0m'
+				DISTRIBUTIONDAYS_EMPTY_CELL=' '
+				;;
+			    green-large-calendar)
+				sparkArgs+=(green-double-center-squares)
+				DISTRIBUTIONDAYS_COLOR_LEGEND='[01m'
+				DISTRIBUTIONDAYS_COLOR_BORDER='[38;5;241m'
+				DISTRIBUTIONDAYS_COLOR_UNITS='[38;5;241m'
+				DISTRIBUTIONDAYS_COLOR_RESET='[0m'
+				DISTRIBUTIONDAYS_EMPTY_CELL='  '
+				;;
+			    *)	sparkArgs+=("$1");;
+			esac
+			shift
+			;;
+	--)		sparkArgs+=("$1"); shift; break;;
+	*)		sparkArgs+=("$1"); shift;;
+    esac
+done
+if [ $yearFieldNr -eq $monthFieldNr ]; then
+    echo >&2 'ERROR: Month field cannot be equal to year field.'
+    exit 2
+elif [ $monthFieldNr -eq $dayFieldNr ]; then
+    echo >&2 'ERROR: Day field cannot be equal to month field.'
+    exit 2
+elif [ $yearFieldNr -eq $dayFieldNr ]; then
+    echo >&2 'ERROR: Day field cannot be equal to year field.'
+    exit 2
+elif [ $yearFieldNr -eq $hourFieldNr ]; then
+    echo >&2 'ERROR: Hour field cannot be equal to year field.'
+    exit 2
+elif [ $monthFieldNr -eq $hourFieldNr ]; then
+    echo >&2 'ERROR: Hour field cannot be equal to month field.'
+    exit 2
+elif [ $dayFieldNr -eq $hourFieldNr ]; then
+    echo >&2 'ERROR: Hour field cannot be equal to day field.'
+    exit 2
+elif [ -n "$countFieldNr" ] && [ $countFieldNr -eq $yearFieldNr -o $countFieldNr -eq $monthFieldNr -o $countFieldNr -eq $dayFieldNr -o $countFieldNr -eq $hourFieldNr ]; then
+    echo >&2 'ERROR: Count field cannot be equal to year / month / day fields.'
+    exit 2
+fi
+
+IFS=$'\n'
+tally()
+{
+    awk \
+	--field-separator "$separator" \
+	-v "dateFormat=${DISTRIBUTIONDAYS_DATE_FORMAT//\\/\\\\}" \
+	-v "baseDate=$baseDate" \
+	-v "graphFieldNr=$graphFieldNr" \
+	-v "isStartDate=$isStartDate" \
+	-v "isEndDate=$isEndDate" \
+	-v "year=$year" \
+	-v "yearFieldNr=$yearFieldNr" \
+	-v "monthFieldNr=$monthFieldNr" \
+	-v "dayFieldNr=$dayFieldNr" \
+	-v "hourFieldNr=$hourFieldNr" \
+	-v "countFieldNr=$countFieldNr" \
+	-v "defaultCount=$defaultCount" \
+	-v "slotNum=$slotNum" \
+	-v "splitDays=$splitDays" \
+	-v "splitFieldNrList=${splitFieldNrs[*]//\\/\\\\}" \
+	-v "isReversed=$isReversed" \
+	-v "emptyCell=${DISTRIBUTIONDAYS_EMPTY_CELL//\\/\\\\}" \
+'
+BEGIN {
+    minSlot = 2^PREC; maxSlot = 0
+    if (baseDate != "") {
+	if (baseDate == "today") {
+	    baseEpoch = mktime(strftime("%Y %m %d 00 00 00"))
+	} else {
+	    baseEpoch = mktime(gensub(/[^0-9]/, " ", "g", baseDate) " 00 00 00")
+	    if (baseEpoch == -1) {
+		printf("Invalid base-date: %s\n", baseDate) > "/dev/stderr"
+		exit(3)
+	    }
+	}
+	baseSlot = (baseEpoch / 86400) * slotNum + (slotNum > 1 ? int(slotNum / 2) - 1 : 0) # Choose a slot in the middle of the day.
+	minSlot = maxSlot = baseSlot
+    }
+
+    splitFieldNrNum = split(splitFieldNrList, splitFieldNrs, "\n")
+
+    emptyCellWithoutAnsiEscapes = gensub(/\x1b\[[0-9:;]*[mK]/, "", "g", emptyCell)
+    cellWidth = (emptyCellWithoutAnsiEscapes == "　" ? 2 : length(emptyCellWithoutAnsiEscapes)) # Rudimentary handling of fullwidth characters (just U+3000 IDEOGRAPHIC SPACE).
+}
+function slotToDate(slot)
+{
+    return strftime(dateFormat, slot * 86400 / slotNum)
+}
+function printSection(      dayWidth, h, result, s)
+{
+    if (length(count) == 0) return
+
+    print graphLegend; graphLegend = ""
+
+    if (isReversed) {
+	print slotToDate(maxSlot)
+	print slotToDate(minSlot)
+
+	result = render(count[maxSlot])
+	for (s = maxSlot - 1; s >= minSlot; --s) {
+	    result = result "," render(count[s])
+	}
+    } else {
+	print slotToDate(minSlot)
+	print slotToDate(maxSlot)
+
+	result = render(count[minSlot])
+	for (s = minSlot + 1; s <= maxSlot; ++s) {
+	    result = result "," render(count[s])
+	}
+    }
+    print result; delete count
+    if (baseSlot > 0) {
+	minSlot = maxSlot = baseSlot
+    } else {
+	minSlot = 2^PREC; maxSlot = 0
+    }
+}
+function render(v)
+{
+    return (v == "" ? emptyCell : v)
+}
+{
+    for (i in splitFieldNrs) {
+	sf = splitFieldNrs[i]
+	if ($sf != "" && watchedFields[sf] != "" && watchedFields[sf] != $sf) {
+	    printSection()
+
+	    delete watchedFields
+	    for (sf in splitFieldNrs) {
+		if ($sf != "") watchedFields[sf] = $sf
+	    }
+	    break
+	} else if (watchedFields[sf] == "" && $sf != "") {
+	    watchedFields[sf] = $sf
+	}
+    }
+
+    if (graphFieldNr != "" && graphLegend == "") graphLegend = $graphFieldNr
+
+    thisYear = (year == "" ? $yearFieldNr : year)
+    epoch = mktime(thisYear " " $monthFieldNr " " $dayFieldNr " 00 00 00")
+    if (epoch == -1) {
+	printf("Invalid date in line %d: %s\n", NR, $0) > "/dev/stderr"
+	next
+    }
+    slot = (epoch / 86400) * slotNum + (slotNum > 1 ? int($hourFieldNr) * slotNum / 24 : 0)
+    if (slot < minSlot) {
+	minSlot = slot
+    } else if (slot > maxSlot) {
+	maxSlot = slot
+    }
+
+    if (countFieldNr == "") {
+	count[slot] += 1
+    } else if ($countFieldNr ~ /^-?[[:digit:]]+$/) {
+	count[slot] += int($countFieldNr)
+    } else if (defaultCount != "none") {
+	if (defaultCount != "") {
+	    count[slot] += defaultCount
+	}
+    } else {
+	printf("%s count in line %d: %s\n", ($countFieldNr == "" ? "Missing" : "Invalid"), NR, $0) > "/dev/stderr"
+    }
+}
+END {
+    printSection()
+}
+'
+}
+
+printDistribution()
+{
+    local status=99
+    while :
+    do
+	# Each section consists of 2 lines:
+	# - legend for graph
+	# - start date
+	# - end date
+	# - comma-separated data
+	local graphLegendFromData; IFS=$'\n' read -r graphLegendFromData || break
+	local graphLegend="${graphLegendFromData:-$graphLegendText}"
+	local startDate; IFS=$'\n' read -r startDate || break
+	local endDate; IFS=$'\n' read -r endDate || break
+	local data; IFS=$'\n' read -r data || break
+
+	local sparkEmptyOverride; [ -n "${SPARK_EMPTY+t}" ] || sparkEmptyOverride='SPARK_EMPTY="$DISTRIBUTIONDAYS_EMPTY_CELL"'
+	local renderedDistribution; renderedDistribution="$(eval "$sparkEmptyOverride" 'spark --min 0 "${sparkArgs[@]}" "$data"')" && status=0 || exit $?
+
+	local legendWidth=$DISTRIBUTIONDAYS_LEGEND_LENGTH
+
+	local B="$DISTRIBUTIONDAYS_COLOR_BORDER" L="$DISTRIBUTIONDAYS_COLOR_LEGEND" U="$DISTRIBUTIONDAYS_COLOR_UNITS" R="$DISTRIBUTIONDAYS_COLOR_RESET"
+	printf "%s%${legendWidth:+-}${legendWidth}${legendWidth:+.}${legendWidth}s%s%s%s%s%s%s\\n" "${graphLegend:+$L}" "${graphLegend}" "${graphLegend:+$R}" "${startDate:+$U}${startDate}${startDate:+$R}" "${B}${borders[0]}${R}" "$renderedDistribution" "${B}${borders[1]}${R}" "${endDate:+$U}${endDate}${endDate:+$R}"
+    done
+
+    return $status
+}
+
+tally | printDistribution
