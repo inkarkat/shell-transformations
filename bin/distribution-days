@@ -8,6 +8,7 @@ set -o pipefail
 : ${DISTRIBUTIONDAYS_COLOR_BORDER=}  # for DISTRIBUTIONDAYS_BORDERS
 : ${DISTRIBUTIONDAYS_COLOR_LEGEND=}  # for the graph legend
 : ${DISTRIBUTIONDAYS_COLOR_UNITS=}   # for the start and end days on the left and right of the chart
+: ${DISTRIBUTIONDAYS_COLOR_GRAPH=}   # for spark graph itself
 : ${DISTRIBUTIONDAYS_COLOR_RESET=}   # undo the coloring
 
 typeset -a borders=()
@@ -379,8 +380,8 @@ printDistribution()
 	local legendWidth=$DISTRIBUTIONDAYS_LEGEND_LENGTH
 	local legendStartDateSeparator=''; [ -n "$graphLegend" -a -n "$startDate" ] && legendStartDateSeparator=' '
 
-	local B="$DISTRIBUTIONDAYS_COLOR_BORDER" L="$DISTRIBUTIONDAYS_COLOR_LEGEND" U="$DISTRIBUTIONDAYS_COLOR_UNITS" R="$DISTRIBUTIONDAYS_COLOR_RESET"
-	printf "%s%${legendWidth:+-}${legendWidth}${legendWidth:+.}${legendWidth}s%s%s%s%s%s%s%s\\n" "${graphLegend:+$L}" "${graphLegend}" "${graphLegend:+$R}" "$legendStartDateSeparator" "${startDate:+$U}${startDate}${startDate:+$R}" "${B}${borders[0]}${R}" "$renderedDistribution" "${B}${borders[1]}${R}" "${endDate:+$U}${endDate}${endDate:+$R}"
+	local B="$DISTRIBUTIONDAYS_COLOR_BORDER" L="$DISTRIBUTIONDAYS_COLOR_LEGEND" U="$DISTRIBUTIONDAYS_COLOR_UNITS" G="$DISTRIBUTIONDAYS_COLOR_GRAPH" R="$DISTRIBUTIONDAYS_COLOR_RESET"
+	printf "%s%${legendWidth:+-}${legendWidth}${legendWidth:+.}${legendWidth}s%s%s%s%s%s%s%s\\n" "${graphLegend:+$L}" "${graphLegend}" "${graphLegend:+$R}" "$legendStartDateSeparator" "${startDate:+$U}${startDate}${startDate:+$R}" "${B}${borders[0]}${R}" "${G}${renderedDistribution}${R}" "${B}${borders[1]}${R}" "${endDate:+$U}${endDate}${endDate:+$R}"
     done
 
     return $status

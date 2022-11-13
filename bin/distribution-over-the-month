@@ -7,6 +7,7 @@
 : ${DISTRIBUTIONOVERTHEMONTH_COLOR_LEGEND=}  # for the graph legend
 : ${DISTRIBUTIONOVERTHEMONTH_COLOR_FOOTER=}  # for the footer legend
 : ${DISTRIBUTIONOVERTHEMONTH_COLOR_UNITS=}   # for the days at the bottom of the chart
+: ${DISTRIBUTIONOVERTHEMONTH_COLOR_GRAPH=}   # for spark graph itself
 : ${DISTRIBUTIONOVERTHEMONTH_COLOR_RESET=}   # undo the coloring
 
 typeset -a borders=()
@@ -279,7 +280,7 @@ printDistribution()
 
 	local legendWidth=$DISTRIBUTIONOVERTHEMONTH_LEGEND_LENGTH
 
-	local B="$DISTRIBUTIONOVERTHEMONTH_COLOR_BORDER" L="$DISTRIBUTIONOVERTHEMONTH_COLOR_LEGEND" F="$DISTRIBUTIONOVERTHEMONTH_COLOR_FOOTER" U="$DISTRIBUTIONOVERTHEMONTH_COLOR_UNITS" R="$DISTRIBUTIONOVERTHEMONTH_COLOR_RESET"
+	local B="$DISTRIBUTIONOVERTHEMONTH_COLOR_BORDER" L="$DISTRIBUTIONOVERTHEMONTH_COLOR_LEGEND" F="$DISTRIBUTIONOVERTHEMONTH_COLOR_FOOTER" U="$DISTRIBUTIONOVERTHEMONTH_COLOR_UNITS" G="$DISTRIBUTIONOVERTHEMONTH_COLOR_GRAPH" R="$DISTRIBUTIONOVERTHEMONTH_COLOR_RESET"
 	if [ "$isFooter" ]; then
 	    if [ -z "$legendWidth" ]; then
 		legendWidth=$((${#graphLegend} > ${#footerLegend} ? ${#graphLegend} : ${#footerLegend}))
@@ -298,14 +299,14 @@ printDistribution()
 		printf %s "$finalFooter"
 	    fi
 
-	    printf "%s%-${legendWidth}.${legendWidth}s%s%s%s%s\\n" "$L" "$graphLegend" "$R" "${B}${borders[0]}${R}" "$renderedDistribution" "${B}${borders[1]}${R}"
+	    printf "%s%-${legendWidth}.${legendWidth}s%s%s%s%s\\n" "$L" "$graphLegend" "$R" "${B}${borders[0]}${R}" "${G}${renderedDistribution}${R}" "${B}${borders[1]}${R}"
 	    printf "${footerCapture[@]}" \
 		   "%s%-${legendWidth}.${legendWidth}s%s%s%s%s\\n" "$F" "$footerLegend" "$R" "${B}${borders[2]}${R}" "${U}${footer}${R}" "${B}${borders[3]}${R}"
 
 	    let footerCount+=1
 	else
 	    local completeLegend="$graphLegend"; [ -n "$graphLegend" -a -n "$footerLegend" ] && completeLegend+=' '; completeLegend+="$footerLegend"
-	    printf "%s%${legendWidth:+-}${legendWidth}${legendWidth:+.}${legendWidth}s%s%s\\n" "$L" "$completeLegend" "$R" "$renderedDistribution"
+	    printf "%s%${legendWidth:+-}${legendWidth}${legendWidth:+.}${legendWidth}s%s%s\\n" "$L" "$completeLegend" "$R" "${G}${renderedDistribution}${R}"
 	fi
     done
 
