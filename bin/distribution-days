@@ -18,7 +18,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| [DISTRIBUTIONDAYS_EMPTY_CELL='-'] [DISTRIBUTIONDAYS_BORDERS='< >'] [DISTRIBUTIONDAYS_DATE_FORMAT='%%Y-%%m-%%d'] [DISTRIBUTIONDAYS_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--base-date today|"YYYY MM DD"] [--graph-legend TEXT] [--graph-field N] [--no-start-date] [--no-end-date] [-F|--field-separator FS] [--year YYYY |--year-field Y] [--month-field M] [--day-field N] [--slots-per-day N [--hour-field M]] [--count-field C [--default-count C|""]] [--split-days C|--split-graph-field N [--split-graph-field ...]] [--reversed] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| [DISTRIBUTIONDAYS_EMPTY_CELL='-'] [DISTRIBUTIONDAYS_BORDERS='< >'] [DISTRIBUTIONDAYS_DATE_FORMAT='%%Y-%%m-%%d'] [DISTRIBUTIONDAYS_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--base-date today|"YYYY MM DD"] [--graph-legend TEXT] [--graph-field N] [--no-start-date] [--no-end-date] [-F|--field-separator FS] [--year YYYY |--year-field Y] [--month-field M] [--day-field N] [--days-per-slot N|--slots-per-day N [--hour-field M]] [--count-field C [--default-count C|""]] [--split-days C|--split-graph-field N [--split-graph-field ...]] [--reversed] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -68,6 +68,8 @@ HELPDESCRIPTION
     --default-count C	Use a count of C if the count column does not contain an
 			integer or is missing. Suppresses the warning that would
 			normally be given then.
+    --days-per-slot N	Combine N days into a single slot (to compress the
+			graph).
     --slots-per-day N	Divide each day into N slots (comprising 24 / N
 			hours); default is 1 slot per day. The hour that is
 			required for more than one slot is taken from the fourth
@@ -100,6 +102,7 @@ dayFieldNr=3
 hourFieldNr=4
 countFieldNr=
 defaultCount=none
+dayNum=1
 slotNum=1
 splitDays=0
 typeset -a splitFieldNrs=()
@@ -118,6 +121,8 @@ do
 			shift; isEndDate=;;
 	--field-separator|-F)
 			shift; separator="${1:?}"; shift;;
+	--days-per-slot)
+			shift; dayNum="$1"; shift;;
 	--slots-per-day)
 			shift; slotNum="$1"; shift;;
 	--day-field)    shift; dayFieldNr="${1:?}"; shift;;
@@ -161,7 +166,10 @@ do
 	*)		sparkArgs+=("$1"); shift;;
     esac
 done
-if [ $yearFieldNr -eq $monthFieldNr ]; then
+if [ $dayNum -ne 1 -a $slotNum -ne 1 ]; then
+    echo >&2 'ERROR: Cannot combine --days-per-slot with --slots-per-day.'
+    exit 2
+elif [ $yearFieldNr -eq $monthFieldNr ]; then
     echo >&2 'ERROR: Month field cannot be equal to year field.'
     exit 2
 elif [ $monthFieldNr -eq $dayFieldNr ]; then
@@ -199,6 +207,7 @@ tally()
 	-v "hourFieldNr=$hourFieldNr" \
 	-v "countFieldNr=$countFieldNr" \
 	-v "defaultCount=$defaultCount" \
+	-v "dayNum=$dayNum" \
 	-v "slotNum=$slotNum" \
 	-v "splitDays=$splitDays" \
 	-v "splitFieldNrList=${splitFieldNrs[*]//\\/\\\\}" \
@@ -217,7 +226,7 @@ BEGIN {
 		exit(3)
 	    }
 	}
-	baseSlot = int((baseEpoch / 86400) * slotNum + (slotNum > 1 ? int(slotNum / 2) : 0)) # Choose a slot in the middle of the day.
+	baseSlot = int((baseEpoch / 86400 / dayNum) * slotNum + (slotNum > 1 ? int(slotNum / 2) : 0)) # Choose a slot in the middle of the day.
 	minSlot = maxSlot = baseSlot
     }
 
@@ -229,7 +238,7 @@ BEGIN {
 }
 function slotToDate(slot)
 {
-    return strftime(dateFormat, slot * 86400 / slotNum, 1)
+    return strftime(dateFormat, slot * 86400 * dayNum / slotNum, 1)
 }
 function printSection(      sectionLegendSpacer, sectionLegend, result, resultCnt, s)
 {
@@ -312,8 +321,8 @@ function render(v)
 	printf("Invalid date in line %d: %s\n", NR, $0) > "/dev/stderr"
 	next
     }
-    slot = int((epoch / 86400) * slotNum + (slotNum > 1 ? int(int($hourFieldNr) * slotNum / 24) : 0))
-    ####D print "**** " slotToDate(slot) ", " int(int($hourFieldNr) * slotNum / 24) > "/dev/stderr"
+    slot = int((epoch / 86400 / dayNum) * slotNum + (slotNum > 1 ? int(int($hourFieldNr) * slotNum / 24) : 0))
+    ####D print "**** " slot " " slotToDate(slot) ", " int(int($hourFieldNr) * slotNum / 24) > "/dev/stderr"
     if (slot < minSlot) {
 	minSlot = slot
     }
