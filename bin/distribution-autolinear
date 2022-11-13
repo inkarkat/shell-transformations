@@ -39,8 +39,9 @@ isColor=; [ -t 1 ] && isColor=t
 let dateCnt=2
 width=
 typeset -a distributionArgs=()
-typeset -a distributionRenderArgs=()
 typeset -a distributionFieldSeparatorArgs=(-F '[[:space:]:_/-]')
+typeset -a distributionRenderArgs=()
+typeset -a distributionScaleArgs=()
 while [ $# -ne 0 ]
 do
     case "$1" in
@@ -63,6 +64,8 @@ do
 			;;
 	--width|-w)	shift; width="${1:?}"; shift;;
 	--as)		distributionRenderArgs=("$1" "$2"); shift; shift;;
+	--days-per-slot|--slots-per-day)
+			distributionScaleArgs+=("$1" "$2"); shift; shift;;
 	--field-separator|-F)
 			distributionFieldSeparatorArgs=("$1" "$2"); shift; shift;;
 	--no-start-date|--no-end-date)
@@ -83,8 +86,9 @@ dayDiff="$(datediff --output days "$firstDate" "$lastDate")" || exit $?
 dayNum=$((dayDiff + 1))
 
 typeset -a distributionCommand=(distribution-days)
-typeset -a distributionScaleArgs=()
-if [ $dayNum -le $width ]; then
+if [ ${#distributionScaleArgs[@]} -gt 0 ]; then
+    : # No auto-scaling.
+elif [ $dayNum -le $width ]; then
     for factorAndColor in '24 [38;5;252m' '12 [38;5;250m' '6 [38;5;246m' '4 [38;5;244m' '3 [38;5;240m' '2 [38;5;238m'
     do
 	factor="${factorAndColor%% *}"
