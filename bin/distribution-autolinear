@@ -1,6 +1,6 @@
 #!/bin/bash
 
-: ${DISTRIBUTIONAUTOLINEAR_WIDTH:=$((${COLUMNS:-80}-25))}
+: ${defaultWidth:=$((${COLUMNS:-80}-25))}
 
 printShortUsage()
 {
@@ -31,12 +31,13 @@ HELPDESCRIPTION
     cat <<HELPTEXT
     --width|-w W	Choose the scaling so that the width of the actual graph
 			(without legend, start, and end dates) is less than W
-			(default: ${DISTRIBUTIONAUTOLINEAR_WIDTH}).
+			(default: ${defaultWidth}).
 HELPTEXT
 }
 
 isColor=; [ -t 1 ] && isColor=t
-width=$DISTRIBUTIONAUTOLINEAR_WIDTH
+let dateCnt=2
+width=
 typeset -a distributionArgs=()
 typeset -a distributionRenderArgs=()
 typeset -a distributionFieldSeparatorArgs=(-F '[[:space:]:_/-]')
@@ -64,10 +65,13 @@ do
 	--as)		distributionRenderArgs=("$1" "$2"); shift; shift;;
 	--field-separator|-F)
 			distributionFieldSeparatorArgs=("$1" "$2"); shift; shift;;
+	--no-start-date|--no-end-date)
+			distributionArgs+=("$1"); shift; let dateCnt-=1;;
 	--)		distributionArgs+=("$1"); shift; break;;
 	*)		distributionArgs+=("$1"); shift;;
     esac
 done
+: ${width:=${DISTRIBUTIONDAYS_WIDTH:-$((${COLUMNS:-80} - (dateCnt * 12) - 1))}}
 
 readarray -t dates
 [ ${#dates[@]} -gt 0 ] || exit 99
