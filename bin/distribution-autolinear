@@ -42,6 +42,8 @@ typeset -a distributionFieldSeparatorArgs=(-F '[[:space:]:_/-]')
 typeset -a distributionNoArgs=()
 typeset -a distributionRenderArgs=()
 typeset -a distributionScaleArgs=()
+isBaseDateToday=
+isReversed=
 while [ $# -ne 0 ]
 do
     case "$1" in
@@ -68,8 +70,10 @@ do
 			distributionScaleArgs+=("$1" "$2"); shift; shift;;
 	--field-separator|-F)
 			distributionFieldSeparatorArgs=("$1" "$2"); shift; shift;;
+	--base-date)	distributionArgs+=("$1" "$2"); shift; [ "$1" = 'today' ] && isBaseDateToday=t; shift;;
 	--no-start-date|--no-end-date)
 			distributionNoArgs+=("$1"); shift;;
+	--reversed)	distributionArgs+=("$1"); shift; isReversed=t;;
 	--)		distributionArgs+=("$1"); shift; break;;
 	*)		distributionArgs+=("$1"); shift;;
     esac
@@ -80,6 +84,19 @@ readarray -t dates
 
 firstDate="${dates[0]%% *}"
 lastDate="${dates[-1]%% *}"
+
+if [ "$isBaseDateToday" ] || {
+    [ ${#distributionNoArgs[@]} -eq 0 ] && today="$(date +%Y-%m-%d)" && {
+	[ $(datediff --output days "$firstDate" "$today") -eq 0 ] \
+	    || [ $(datediff --output days "$lastDate" "$today") -eq 0 ]
+	}
+    }
+then
+    # Assumption: Dates are in the past up to now, not in the future.
+    [ "$isReversed" ] \
+	&& distributionNoArgs=(--no-start-date) \
+	|| distributionNoArgs=(--no-end-date)
+fi
 
 dayDiff="$(datediff --output days "$firstDate" "$lastDate")" || exit $?
 dayNum=$((dayDiff + 1))
