@@ -209,9 +209,9 @@ BEGIN {
     minSlot = 2^PREC; maxSlot = 0
     if (baseDate != "") {
 	if (baseDate == "today") {
-	    baseEpoch = mktime(strftime("%Y %m %d 00 00 00"))
+	    baseEpoch = mktime(strftime("%Y %m %d 00 00 00"), 1)
 	} else {
-	    baseEpoch = mktime(gensub(/[^0-9]/, " ", "g", baseDate) " 00 00 00")
+	    baseEpoch = mktime(gensub(/[^0-9]/, " ", "g", baseDate) " 00 00 00", 1)
 	    if (baseEpoch == -1) {
 		printf("Invalid base-date: %s\n", baseDate) > "/dev/stderr"
 		exit(3)
@@ -229,7 +229,7 @@ BEGIN {
 }
 function slotToDate(slot)
 {
-    return strftime(dateFormat, slot * 86400 / slotNum)
+    return strftime(dateFormat, slot * 86400 / slotNum, 1)
 }
 function printSection(      sectionLegendSpacer, sectionLegend, result, resultCnt, s)
 {
@@ -307,12 +307,13 @@ function render(v)
     if (graphFieldNr != "" && graphLegend == "") graphLegend = $graphFieldNr
 
     thisYear = (year == "" ? $yearFieldNr : year)
-    epoch = mktime(thisYear " " $monthFieldNr " " $dayFieldNr " 00 00 00")
+    epoch = mktime(thisYear " " $monthFieldNr " " $dayFieldNr " 00 00 00", 1)
     if (epoch == -1) {
 	printf("Invalid date in line %d: %s\n", NR, $0) > "/dev/stderr"
 	next
     }
-    slot = int((epoch / 86400) * slotNum + (slotNum > 1 ? int($hourFieldNr) * slotNum / 24 : 0))
+    slot = int((epoch / 86400) * slotNum + (slotNum > 1 ? int(int($hourFieldNr) * slotNum / 24) : 0))
+    ####D print "**** " slotToDate(slot) ", " int(int($hourFieldNr) * slotNum / 24) > "/dev/stderr"
     if (slot < minSlot) {
 	minSlot = slot
     }
