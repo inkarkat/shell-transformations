@@ -36,10 +36,10 @@ HELPTEXT
 }
 
 isColor=; [ -t 1 ] && isColor=t
-let dateCnt=2
 width=
 typeset -a distributionArgs=()
 typeset -a distributionFieldSeparatorArgs=(-F '[[:space:]:_/-]')
+typeset -a distributionNoArgs=()
 typeset -a distributionRenderArgs=()
 typeset -a distributionScaleArgs=()
 while [ $# -ne 0 ]
@@ -69,12 +69,11 @@ do
 	--field-separator|-F)
 			distributionFieldSeparatorArgs=("$1" "$2"); shift; shift;;
 	--no-start-date|--no-end-date)
-			distributionArgs+=("$1"); shift; let dateCnt-=1;;
+			distributionNoArgs+=("$1"); shift;;
 	--)		distributionArgs+=("$1"); shift; break;;
 	*)		distributionArgs+=("$1"); shift;;
     esac
 done
-: ${width:=${DISTRIBUTIONDAYS_WIDTH:-$((${COLUMNS:-80} - (dateCnt * 12) - 1))}}
 
 readarray -t dates
 [ ${#dates[@]} -gt 0 ] || exit 99
@@ -84,6 +83,8 @@ lastDate="${dates[-1]%% *}"
 
 dayDiff="$(datediff --output days "$firstDate" "$lastDate")" || exit $?
 dayNum=$((dayDiff + 1))
+
+: ${width:=${DISTRIBUTIONDAYS_WIDTH:-$((${COLUMNS:-80} - ((2 - ${#distributionNoArgs[@]}) * 12) - 1))}}
 
 typeset -a distributionCommand=(distribution-days)
 if [ ${#distributionScaleArgs[@]} -gt 0 ]; then
@@ -120,5 +121,5 @@ fi
 
 typeset -a pager=("${PAGER:-less}" --RAW-CONTROL-CHARS); [ -t 1 ] || pager=()
 printf '%s\n' "${dates[@]}" | \
-    eval '"${distributionCommand[@]}" "${distributionFieldSeparatorArgs[@]}" "${distributionRenderArgs[@]}" "${distributionScaleArgs[@]}" "${distributionArgs[@]}"' \
+    eval '"${distributionCommand[@]}" "${distributionFieldSeparatorArgs[@]}" "${distributionNoArgs[@]}" "${distributionRenderArgs[@]}" "${distributionScaleArgs[@]}" "${distributionArgs[@]}"' \
 	"${pager:+|}" '"${pager[@]}"'
