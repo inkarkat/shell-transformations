@@ -6,7 +6,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| %q %s\\n" "$(basename "$1")" '[-w|--width W] [--base-date today|"YYYY MM DD"] [--graph-legend TEXT] [--graph-field N] [--no-start-date] [--no-end-date] [-F|--field-separator FS] [--year YYYY |--year-field Y] [--month-field M] [--day-field N] [--days-per-slot N|--slots-per-day N [--hour-field M]] [--count-field C [--default-count C|""]] [--split-days C|--split-graph-field N [--split-graph-field ...]] [--reversed] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| %q %s\\n" "$(basename "$1")" '[--color=(always|auto|never)|--no-color] [-w|--width W] [--base-date today|"YYYY MM DD"] [--graph-legend TEXT] [--graph-field N] [--no-start-date] [--no-end-date] [-F|--field-separator FS] [--year YYYY |--year-field Y] [--month-field M] [--day-field N] [--days-per-slot N|--slots-per-day N [--hour-field M]] [--count-field C [--default-count C|""]] [--split-days C|--split-graph-field N [--split-graph-field ...]] [--reversed] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -35,13 +35,35 @@ HELPDESCRIPTION
 HELPTEXT
 }
 
+isColor=; [ -t 1 ] && isColor=t
 width=$DISTRIBUTIONAUTOLINEAR_WIDTH
 typeset -a distributionArgs=()
+typeset -a distributionRenderArgs=()
+typeset -a distributionFieldSeparatorArgs=(-F '[[:space:]:_/-]')
 while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--no-color|--color=never)
+			isColor=; shift;;
+	--color=always)	isColor=t; shift;;
+	--color=auto)	shift;;
+	--color)	case "$2" in
+			    always) isColor=t;;
+			    never)  isColor=;;
+			    auto)   ;;
+			    *)	    echo >&2 "ERROR: Invalid --color arg: $2"
+				    echo >&2
+				    printUsage "$0" >&2
+				    exit 2
+				    ;;
+			esac
+			shift; shift
+			;;
 	--width|-w)	shift; width="${1:?}"; shift;;
+	--as)		distributionRenderArgs=("$1" "$2"); shift; shift;;
+	--field-separator|-F)
+			distributionFieldSeparatorArgs=("$1" "$2"); shift; shift;;
 	--)		distributionArgs+=("$1"); shift; break;;
 	*)		distributionArgs+=("$1"); shift;;
     esac
@@ -66,11 +88,26 @@ if [ $dayNum -le $width ]; then
 	    break
 	fi
     done
+
+    if [ "$isColor" ]; then
+	# Use the colors from --as green-calendar here, too.
+	: ${DISTRIBUTIONDAYS_COLOR_LEGEND='[01m'}
+	: ${DISTRIBUTIONDAYS_COLOR_BORDER='[38;5;241m'}
+	: ${DISTRIBUTIONDAYS_COLOR_UNITS='[38;5;241m'}
+	: ${DISTRIBUTIONDAYS_COLOR_RESET='[0m'}
+	: ${DISTRIBUTIONDAYS_EMPTY_CELL=' '}
+	export "${!DISTRIBUTIONDAYS_@}"
+    fi
 else
     distributionScaleArgs=(--days-per-slot $((1 + (dayNum - 1) / width)))
+    if [ ${#distributionRenderArgs[@]} -eq 0 ]; then
+	[ "$isColor" ] \
+	    && distributionRenderArgs=(--as green-calendar) \
+	    || distributionRenderArgs=(--as sized-boxes)
+    fi
 fi
 
 typeset -a pager=("${PAGER:-less}" --RAW-CONTROL-CHARS); [ -t 1 ] || pager=()
 printf '%s\n' "${dates[@]}" | \
-    eval '"${distributionCommand[@]}" "${distributionScaleArgs[@]}" "${distributionArgs[@]}"' \
+    eval '"${distributionCommand[@]}" "${distributionFieldSeparatorArgs[@]}" "${distributionRenderArgs[@]}" "${distributionScaleArgs[@]}" "${distributionArgs[@]}"' \
 	"${pager:+|}" '"${pager[@]}"'
