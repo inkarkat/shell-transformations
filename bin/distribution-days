@@ -236,9 +236,16 @@ BEGIN {
     emptyCellWithoutAnsiEscapes = gensub(/\x1b\[[0-9:;]*[mK]/, "", "g", emptyCell)
     cellWidth = (emptyCellWithoutAnsiEscapes == "　" ? 2 : length(emptyCellWithoutAnsiEscapes)) # Rudimentary handling of fullwidth characters (just U+3000 IDEOGRAPHIC SPACE).
 }
-function slotToDate(slot)
+function slotToDate(slot, isEnd,      hourOffset)
 {
-    return strftime(dateFormat, slot * 86400 * dayNum / slotNum, 1)
+    hourOffset = (isEnd \
+	? dayNum > 1 \
+	    ? (24 * dayNum - 1) \
+	    : int(24 / slotNum) - 1 \
+	: 0 \
+    )
+    ####D print "**** " strftime(dateFormat, slot * 86400 * dayNum / slotNum, 1) " + " hourOffset > "/dev/stderr"
+    return strftime(dateFormat, slot * 86400 * dayNum / slotNum + (3600 * hourOffset), 1)
 }
 function printSection(      sectionLegendSpacer, sectionLegend, result, resultCnt, s)
 {
@@ -251,7 +258,7 @@ function printSection(      sectionLegendSpacer, sectionLegend, result, resultCn
 	for (; maxSlot >= minSlot; --maxSlot) {
 	    if (resultCnt == 0) {
 		print sectionLegend; sectionLegend = sectionLegendSpacer
-		print slotToDate(maxSlot)
+		print slotToDate(maxSlot, 0)
 		result = render(count[maxSlot])
 	    } else {
 		result = result "," render(count[maxSlot])
@@ -259,18 +266,18 @@ function printSection(      sectionLegendSpacer, sectionLegend, result, resultCn
 	    if (++resultCnt == splitSlots) {
 		print result
 		resultCnt = 0
-		print slotToDate(maxSlot)
+		print slotToDate(maxSlot, 1)
 	    }
 	}
 	if (resultCnt > 0) {
 	    print result
-	    print slotToDate(minSlot)
+	    print slotToDate(minSlot, 1)
 	}
     } else {
 	for (; minSlot <= maxSlot; ++minSlot) {
 	    if (resultCnt == 0) {
 		print sectionLegend; sectionLegend = sectionLegendSpacer
-		print slotToDate(minSlot)
+		print slotToDate(minSlot, 0)
 		result = render(count[minSlot])
 	    } else {
 		result = result "," render(count[minSlot])
@@ -278,12 +285,12 @@ function printSection(      sectionLegendSpacer, sectionLegend, result, resultCn
 	    if (++resultCnt == splitSlots) {
 		print result
 		resultCnt = 0
-		print slotToDate(minSlot)
+		print slotToDate(minSlot, 1)
 	    }
 	}
 	if (resultCnt > 0) {
 	    print result
-	    print slotToDate(maxSlot)
+	    print slotToDate(maxSlot, 1)
 	}
     }
     delete count
@@ -322,7 +329,7 @@ function render(v)
 	next
     }
     slot = int((epoch / 86400 / dayNum) * slotNum + (slotNum > 1 ? int(int($hourFieldNr) * slotNum / 24) : 0))
-    ####D print "**** " slot " " slotToDate(slot) ", " int(int($hourFieldNr) * slotNum / 24) > "/dev/stderr"
+    ####D print "**** " slot " " slotToDate(slot, 0) ", " int(int($hourFieldNr) * slotNum / 24) > "/dev/stderr"
     if (slot < minSlot) {
 	minSlot = slot
     }
