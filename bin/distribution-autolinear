@@ -1,0 +1,76 @@
+#!/bin/bash
+
+: ${DISTRIBUTIONAUTOLINEAR_WIDTH:=$((${COLUMNS:-80}-25))}
+
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
+    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| %q %s\\n" "$(basename "$1")" '[-w|--width W] [--base-date today|"YYYY MM DD"] [--graph-legend TEXT] [--graph-field N] [--no-start-date] [--no-end-date] [-F|--field-separator FS] [--year YYYY |--year-field Y] [--month-field M] [--day-field N] [--days-per-slot N|--slots-per-day N [--hour-field M]] [--count-field C [--default-count C|""]] [--split-days C|--split-graph-field N [--split-graph-field ...]] [--reversed] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
+}
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
+Print the distribution of the number of dates (assumed to be ordered, either
+from earliest to latest or in descending order) in a graph that adapts its width
+based on the range of input dates by scaling the number of slots per day or days
+per slot.
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    echo
+    cat <<HELPTEXT
+    --width|-w W	Choose the scaling so that the width of the actual graph
+			(without legend, start, and end dates) is less than W
+			(default: ${DISTRIBUTIONAUTOLINEAR_WIDTH}).
+HELPTEXT
+}
+
+width=$DISTRIBUTIONAUTOLINEAR_WIDTH
+typeset -a distributionArgs=()
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--width|-w)	shift; width="${1:?}"; shift;;
+	--)		distributionArgs+=("$1"); shift; break;;
+	*)		distributionArgs+=("$1"); shift;;
+    esac
+done
+
+readarray -t dates
+[ ${#dates[@]} -gt 0 ] || exit 99
+
+firstDate="${dates[0]%% *}"
+lastDate="${dates[-1]%% *}"
+
+dayDiff="$(datediff --output days "$firstDate" "$lastDate")" || exit $?
+dayNum=$((dayDiff + 1))
+
+typeset -a distributionCommand=(distribution-days)
+typeset -a distributionScaleArgs=()
+if [ $dayNum -le $width ]; then
+    for factor in 24 12 6 4 3 2
+    do
+	if [ $((factor * dayNum)) -le $width ]; then
+	    distributionScaleArgs=(--slots-per-day $factor)
+	    break
+	fi
+    done
+else
+    distributionScaleArgs=(--days-per-slot $((1 + (dayNum - 1) / width)))
+fi
+
+typeset -a pager=("${PAGER:-less}" --RAW-CONTROL-CHARS); [ -t 1 ] || pager=()
+printf '%s\n' "${dates[@]}" | \
+    eval '"${distributionCommand[@]}" "${distributionScaleArgs[@]}" "${distributionArgs[@]}"' \
+	"${pager:+|}" '"${pager[@]}"'
