@@ -81,10 +81,13 @@ dayNum=$((dayDiff + 1))
 typeset -a distributionCommand=(distribution-days)
 typeset -a distributionScaleArgs=()
 if [ $dayNum -le $width ]; then
-    for factor in 24 12 6 4 3 2
+    for factorAndColor in '24 [38;5;252m' '12 [38;5;250m' '6 [38;5;246m' '4 [38;5;244m' '3 [38;5;240m' '2 [38;5;238m'
     do
+	factor="${factorAndColor%% *}"
+	color="${factorAndColor#* }"
 	if [ $((factor * dayNum)) -le $width ]; then
 	    distributionScaleArgs=(--slots-per-day $factor)
+	    [ "$isColor" ] && : ${DISTRIBUTIONDAYS_COLOR_GRAPH="$color"}
 	    break
 	fi
     done
