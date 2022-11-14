@@ -1,19 +1,5 @@
 #!/bin/bash
 
-: ${DISTRIBUTIONOVERTHEDAY_EMPTY_CELL= }
-: ${DISTRIBUTIONOVERTHEDAY_BORDERS=⎡ ⎤ ⎣ ⎦}
-
-: ${DISTRIBUTIONOVERTHEDAY_COLOR_BORDER=}  # for DISTRIBUTIONOVERTHEDAY_BORDERS
-: ${DISTRIBUTIONOVERTHEDAY_COLOR_LEGEND=}  # for the graph legend
-: ${DISTRIBUTIONOVERTHEDAY_COLOR_FOOTER=}  # for the footer legend
-: ${DISTRIBUTIONOVERTHEDAY_COLOR_UNITS=}   # for the hours at the bottom of the chart
-: ${DISTRIBUTIONOVERTHEDAY_COLOR_GRAPH=}   # for spark graph itself
-: ${DISTRIBUTIONOVERTHEDAY_COLOR_RESET=}   # undo the coloring
-
-typeset -a borders=()
-[ -n "$DISTRIBUTIONOVERTHEDAY_BORDERS" ] && IFS='' read -r -d '' -a borders <<<"${DISTRIBUTIONOVERTHEDAY_BORDERS// /}"
-[ ${#borders[@]} -gt 0 ] && borders[-1]="${borders[-1]%$'\n'}"
-
 printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
@@ -173,6 +159,20 @@ elif [ -n "$countFieldNr" ] && [ $countFieldNr -eq $hourFieldNr -o $countFieldNr
     echo >&2 'ERROR: Count field cannot be equal to hour / minute fields.'
     exit 2
 fi
+
+: ${DISTRIBUTIONOVERTHEDAY_EMPTY_CELL= }
+: ${DISTRIBUTIONOVERTHEDAY_BORDERS=⎡ ⎤ ⎣ ⎦}
+
+: ${DISTRIBUTIONOVERTHEDAY_COLOR_BORDER=}  # for DISTRIBUTIONOVERTHEDAY_BORDERS
+: ${DISTRIBUTIONOVERTHEDAY_COLOR_LEGEND=}  # for the graph legend
+: ${DISTRIBUTIONOVERTHEDAY_COLOR_FOOTER=}  # for the footer legend
+: ${DISTRIBUTIONOVERTHEDAY_COLOR_UNITS=}   # for the hours at the bottom of the chart
+: ${DISTRIBUTIONOVERTHEDAY_COLOR_GRAPH=}   # for spark graph itself
+: ${DISTRIBUTIONOVERTHEDAY_COLOR_RESET=}   # undo the coloring
+
+typeset -a borders=()
+[ -n "$DISTRIBUTIONOVERTHEDAY_BORDERS" ] && IFS='' read -r -d '' -a borders <<<"${DISTRIBUTIONOVERTHEDAY_BORDERS// /}"
+[ ${#borders[@]} -gt 0 ] && borders[-1]="${borders[-1]%$'\n'}"
 
 IFS=$'\n'
 tally()

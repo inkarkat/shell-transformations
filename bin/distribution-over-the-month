@@ -1,19 +1,5 @@
 #!/bin/bash
 
-: ${DISTRIBUTIONOVERTHEMONTH_EMPTY_CELL= }
-: ${DISTRIBUTIONOVERTHEMONTH_BORDERS=⎡ ⎤ ⎣ ⎦}
-
-: ${DISTRIBUTIONOVERTHEMONTH_COLOR_BORDER=}  # for DISTRIBUTIONOVERTHEMONTH_BORDERS
-: ${DISTRIBUTIONOVERTHEMONTH_COLOR_LEGEND=}  # for the graph legend
-: ${DISTRIBUTIONOVERTHEMONTH_COLOR_FOOTER=}  # for the footer legend
-: ${DISTRIBUTIONOVERTHEMONTH_COLOR_UNITS=}   # for the days at the bottom of the chart
-: ${DISTRIBUTIONOVERTHEMONTH_COLOR_GRAPH=}   # for spark graph itself
-: ${DISTRIBUTIONOVERTHEMONTH_COLOR_RESET=}   # undo the coloring
-
-typeset -a borders=()
-[ -n "$DISTRIBUTIONOVERTHEMONTH_BORDERS" ] && IFS='' read -r -d '' -a borders <<<"${DISTRIBUTIONOVERTHEMONTH_BORDERS// /}"
-[ ${#borders[@]} -gt 0 ] && borders[-1]="${borders[-1]%$'\n'}"
-
 printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
@@ -166,6 +152,20 @@ elif [ -n "$countFieldNr" ] && [ $countFieldNr -eq $dayFieldNr -o $countFieldNr 
     echo >&2 'ERROR: Count field cannot be equal to day / hour fields.'
     exit 2
 fi
+
+: ${DISTRIBUTIONOVERTHEMONTH_EMPTY_CELL= }
+: ${DISTRIBUTIONOVERTHEMONTH_BORDERS=⎡ ⎤ ⎣ ⎦}
+
+: ${DISTRIBUTIONOVERTHEMONTH_COLOR_BORDER=}  # for DISTRIBUTIONOVERTHEMONTH_BORDERS
+: ${DISTRIBUTIONOVERTHEMONTH_COLOR_LEGEND=}  # for the graph legend
+: ${DISTRIBUTIONOVERTHEMONTH_COLOR_FOOTER=}  # for the footer legend
+: ${DISTRIBUTIONOVERTHEMONTH_COLOR_UNITS=}   # for the days at the bottom of the chart
+: ${DISTRIBUTIONOVERTHEMONTH_COLOR_GRAPH=}   # for spark graph itself
+: ${DISTRIBUTIONOVERTHEMONTH_COLOR_RESET=}   # undo the coloring
+
+typeset -a borders=()
+[ -n "$DISTRIBUTIONOVERTHEMONTH_BORDERS" ] && IFS='' read -r -d '' -a borders <<<"${DISTRIBUTIONOVERTHEMONTH_BORDERS// /}"
+[ ${#borders[@]} -gt 0 ] && borders[-1]="${borders[-1]%$'\n'}"
 
 IFS=$'\n'
 tally()

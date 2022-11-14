@@ -1,19 +1,5 @@
 #!/bin/bash
 
-: ${DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL= }
-: ${DISTRIBUTIONOVERTHEYEAR_BORDERS=⎡ ⎤ ⎢ ⎥ ⎣ ⎦}
-
-: ${DISTRIBUTIONOVERTHEYEAR_COLOR_BORDER=}  # for DISTRIBUTIONOVERTHEYEAR_BORDERS
-: ${DISTRIBUTIONOVERTHEYEAR_COLOR_LEGEND=}  # for the graph legend
-: ${DISTRIBUTIONOVERTHEYEAR_COLOR_FOOTER=}  # for the footer legend
-: ${DISTRIBUTIONOVERTHEYEAR_COLOR_UNITS=}   # for the weekdays left of the chart and the months at the bottom of the chart
-: ${DISTRIBUTIONOVERTHEYEAR_COLOR_GRAPH=}   # for spark graph itself
-: ${DISTRIBUTIONOVERTHEYEAR_COLOR_RESET=}   # undo the coloring
-
-typeset -a borders=()
-[ -n "$DISTRIBUTIONOVERTHEYEAR_BORDERS" ] && IFS='' read -r -d '' -a borders <<<"${DISTRIBUTIONOVERTHEYEAR_BORDERS// /}"
-[ ${#borders[@]} -gt 0 ] && borders[-1]="${borders[-1]%$'\n'}"
-
 printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
@@ -178,6 +164,20 @@ elif [ -n "$countFieldNr" ] && [ $countFieldNr -eq $yearFieldNr -o $countFieldNr
     echo >&2 'ERROR: Count field cannot be equal to year / month / day fields.'
     exit 2
 fi
+
+: ${DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL= }
+: ${DISTRIBUTIONOVERTHEYEAR_BORDERS=⎡ ⎤ ⎢ ⎥ ⎣ ⎦}
+
+: ${DISTRIBUTIONOVERTHEYEAR_COLOR_BORDER=}  # for DISTRIBUTIONOVERTHEYEAR_BORDERS
+: ${DISTRIBUTIONOVERTHEYEAR_COLOR_LEGEND=}  # for the graph legend
+: ${DISTRIBUTIONOVERTHEYEAR_COLOR_FOOTER=}  # for the footer legend
+: ${DISTRIBUTIONOVERTHEYEAR_COLOR_UNITS=}   # for the weekdays left of the chart and the months at the bottom of the chart
+: ${DISTRIBUTIONOVERTHEYEAR_COLOR_GRAPH=}   # for spark graph itself
+: ${DISTRIBUTIONOVERTHEYEAR_COLOR_RESET=}   # undo the coloring
+
+typeset -a borders=()
+[ -n "$DISTRIBUTIONOVERTHEYEAR_BORDERS" ] && IFS='' read -r -d '' -a borders <<<"${DISTRIBUTIONOVERTHEYEAR_BORDERS// /}"
+[ ${#borders[@]} -gt 0 ] && borders[-1]="${borders[-1]%$'\n'}"
 
 IFS=$'\n'
 tally()

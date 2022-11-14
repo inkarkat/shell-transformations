@@ -1,20 +1,6 @@
 #!/bin/bash
 set -o pipefail
 
-: ${DISTRIBUTIONDAYS_EMPTY_CELL= }
-: ${DISTRIBUTIONDAYS_BORDERS=[ ]}
-: ${DISTRIBUTIONDAYS_DATE_FORMAT='%Y-%b-%d'}
-
-: ${DISTRIBUTIONDAYS_COLOR_BORDER=}  # for DISTRIBUTIONDAYS_BORDERS
-: ${DISTRIBUTIONDAYS_COLOR_LEGEND=}  # for the graph legend
-: ${DISTRIBUTIONDAYS_COLOR_UNITS=}   # for the start and end days on the left and right of the chart
-: ${DISTRIBUTIONDAYS_COLOR_GRAPH=}   # for spark graph itself
-: ${DISTRIBUTIONDAYS_COLOR_RESET=}   # undo the coloring
-
-typeset -a borders=()
-[ -n "$DISTRIBUTIONDAYS_BORDERS" ] && IFS='' read -r -d '' -a borders <<<"${DISTRIBUTIONDAYS_BORDERS// /}"
-[ ${#borders[@]} -gt 0 ] && borders[-1]="${borders[-1]%$'\n'}"
-
 printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
@@ -192,6 +178,20 @@ elif [ -n "$countFieldNr" ] && [ $countFieldNr -eq $yearFieldNr -o $countFieldNr
     echo >&2 'ERROR: Count field cannot be equal to year / month / day fields.'
     exit 2
 fi
+
+: ${DISTRIBUTIONDAYS_EMPTY_CELL= }
+: ${DISTRIBUTIONDAYS_BORDERS=[ ]}
+: ${DISTRIBUTIONDAYS_DATE_FORMAT='%Y-%b-%d'}
+
+: ${DISTRIBUTIONDAYS_COLOR_BORDER=}  # for DISTRIBUTIONDAYS_BORDERS
+: ${DISTRIBUTIONDAYS_COLOR_LEGEND=}  # for the graph legend
+: ${DISTRIBUTIONDAYS_COLOR_UNITS=}   # for the start and end days on the left and right of the chart
+: ${DISTRIBUTIONDAYS_COLOR_GRAPH=}   # for spark graph itself
+: ${DISTRIBUTIONDAYS_COLOR_RESET=}   # undo the coloring
+
+typeset -a borders=()
+[ -n "$DISTRIBUTIONDAYS_BORDERS" ] && IFS='' read -r -d '' -a borders <<<"${DISTRIBUTIONDAYS_BORDERS// /}"
+[ ${#borders[@]} -gt 0 ] && borders[-1]="${borders[-1]%$'\n'}"
 
 IFS=$'\n'
 tally()
