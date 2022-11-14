@@ -139,25 +139,25 @@ do
 			case "$1" in
 			    colorbox-calendar)
 				sparkArgs+=(color-fullwidth-boxes)
-				DISTRIBUTIONDAYS_EMPTY_CELL='  '
+				: ${DISTRIBUTIONDAYS_EMPTY_CELL='  '}
 				export SPARK_EMPTY_DATA='  '
 				export SPARK_EMPTY=''
 				;;
 			    green-calendar)
 				sparkArgs+=(green-center-boxes)
-				DISTRIBUTIONDAYS_COLOR_LEGEND='[01m'
-				DISTRIBUTIONDAYS_COLOR_BORDER='[38;5;241m'
-				DISTRIBUTIONDAYS_COLOR_UNITS='[38;5;241m'
-				DISTRIBUTIONDAYS_COLOR_RESET='[0m'
-				DISTRIBUTIONDAYS_EMPTY_CELL=' '
+				: ${DISTRIBUTIONDAYS_COLOR_LEGEND='[01m'}
+				: ${DISTRIBUTIONDAYS_COLOR_BORDER='[38;5;241m'}
+				: ${DISTRIBUTIONDAYS_COLOR_UNITS='[38;5;241m'}
+				: ${DISTRIBUTIONDAYS_COLOR_RESET='[0m'}
+				: ${DISTRIBUTIONDAYS_EMPTY_CELL=' '}
 				;;
 			    green-large-calendar)
 				sparkArgs+=(green-double-center-squares)
-				DISTRIBUTIONDAYS_COLOR_LEGEND='[01m'
-				DISTRIBUTIONDAYS_COLOR_BORDER='[38;5;241m'
-				DISTRIBUTIONDAYS_COLOR_UNITS='[38;5;241m'
-				DISTRIBUTIONDAYS_COLOR_RESET='[0m'
-				DISTRIBUTIONDAYS_EMPTY_CELL='  '
+				: ${DISTRIBUTIONDAYS_COLOR_LEGEND='[01m'}
+				: ${DISTRIBUTIONDAYS_COLOR_BORDER='[38;5;241m'}
+				: ${DISTRIBUTIONDAYS_COLOR_UNITS='[38;5;241m'}
+				: ${DISTRIBUTIONDAYS_COLOR_RESET='[0m'}
+				: ${DISTRIBUTIONDAYS_EMPTY_CELL='  '}
 				;;
 			    *)	sparkArgs+=("$1");;
 			esac
