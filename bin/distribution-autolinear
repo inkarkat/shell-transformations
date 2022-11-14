@@ -2,7 +2,8 @@
 
 getDefaultWidth()
 {
-    printf %d $((${COLUMNS:-80} - ((2 - ${#distributionNoArgs[@]}) * 12) - 1))
+    local exampleDate="$(date "+${DISTRIBUTIONDAYS_DATE_FORMAT-'%Y-%b-%d'}")"
+    printf %d $((${COLUMNS:-80} - ((2 - ${#distributionNoArgs[@]}) * ${#exampleDate}) - 1))
 }
 
 printShortUsage()
@@ -115,6 +116,11 @@ else
 fi
 dayNum=$((dayDiff + 1))
 
+# When scaling via --slots-per-day, add the time to the date (as long it's not
+# overridden) for more precision and to indicate the finer resolution.
+if [ -z "${DISTRIBUTIONDAYS_DATE_FORMAT+t}" -a ${#distributionScaleArgs[@]} -eq 0 -a $dayNum -le ${width:-${DISTRIBUTIONDAYS_WIDTH:-$(getDefaultWidth)}} ]; then
+    export DISTRIBUTIONDAYS_DATE_FORMAT='%Y-%b-%d %H:%M'
+fi
 
 : ${width:=${DISTRIBUTIONDAYS_WIDTH:-$(getDefaultWidth)}}
 
