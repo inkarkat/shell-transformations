@@ -1,6 +1,9 @@
 #!/bin/bash
 
-: ${defaultWidth:=$((${COLUMNS:-80}-25))}
+getDefaultWidth()
+{
+    printf %d $((${COLUMNS:-80} - ((2 - ${#distributionNoArgs[@]}) * 12) - 1))
+}
 
 printShortUsage()
 {
@@ -31,7 +34,7 @@ HELPDESCRIPTION
     cat <<HELPTEXT
     --width|-w W	Choose the scaling so that the width of the actual graph
 			(without legend, start, and end dates) is less than W
-			(default: ${defaultWidth}).
+			(default: $(getDefaultWidth)).
 HELPTEXT
 }
 
@@ -112,7 +115,8 @@ else
 fi
 dayNum=$((dayDiff + 1))
 
-: ${width:=${DISTRIBUTIONDAYS_WIDTH:-$((${COLUMNS:-80} - ((2 - ${#distributionNoArgs[@]}) * 12) - 1))}}
+
+: ${width:=${DISTRIBUTIONDAYS_WIDTH:-$(getDefaultWidth)}}
 
 typeset -a distributionCommand=(distribution-days)
 if [ ${#distributionScaleArgs[@]} -gt 0 ]; then
