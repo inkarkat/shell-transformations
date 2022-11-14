@@ -10,7 +10,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| %q %s\\n" "$(basename "$1")" '[--color=(always|auto|never)|--no-color] [-w|--width W] [--base-date today|"YYYY MM DD"] [--graph-legend TEXT] [--graph-field N] [--no-start-date] [--no-end-date] [-F|--field-separator FS] [--year YYYY |--year-field Y] [--month-field M] [--day-field N] [--days-per-slot N|--slots-per-day N [--hour-field M]] [--count-field C [--default-count C|""]] [--split-days C|--split-graph-field N [--split-graph-field ...]] [--reversed] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| %q %s\\n" "$(basename "$1")" '[--color=(always|auto|never)|--no-color] [-w|--width W] [--base-date today|"YYYY MM DD"] [--graph-legend TEXT] [--graph-field N] [--no-start-date] [--no-end-date] [-F|--field-separator FS] [--year YYYY |--year-field Y] [--month-field M] [--day-field N] [--days-per-slot N|--slots-per-day N|--no-day-zoom [--hour-field M]] [--count-field C [--default-count C|""]] [--split-days C|--split-graph-field N [--split-graph-field ...]] [--reversed] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -36,6 +36,9 @@ HELPDESCRIPTION
     --width|-w W	Choose the scaling so that the width of the actual graph
 			(without legend, start, and end dates) is less than W
 			(default: $(getDefaultWidth)).
+    --no-day-zoom	Do not use multiple slots per day even if there would be
+			enough width to show more than one number for a single
+			day.
 HELPTEXT
 }
 
@@ -45,6 +48,7 @@ typeset -a distributionArgs=()
 typeset -a distributionFieldSeparatorArgs=(-F '[[:space:]:_/-]')
 typeset -a distributionNoArgs=()
 typeset -a distributionRenderArgs=()
+isAllowSlotsPerDay=t
 typeset -a distributionScaleArgs=()
 baseDate=
 isReversed=
@@ -70,6 +74,7 @@ do
 			;;
 	--width|-w)	shift; width="${1:?}"; shift;;
 	--as)		distributionRenderArgs=("$1" "$2"); shift; shift;;
+	--no-day-zoom)	shift; isAllowSlotsPerDay=;;
 	--days-per-slot|--slots-per-day)
 			distributionScaleArgs+=("$1" "$2"); shift; shift;;
 	--field-separator|-F)
@@ -128,7 +133,7 @@ typeset -a distributionCommand=(distribution-days)
 if [ ${#distributionScaleArgs[@]} -gt 0 ]; then
     : # No auto-scaling.
 elif [ $dayNum -le $width ]; then
-    for factorAndColor in '24 [38;5;252m' '12 [38;5;250m' '6 [38;5;246m' '4 [38;5;244m' '3 [38;5;240m' '2 [38;5;238m'
+    [ "$isAllowSlotsPerDay" ] && for factorAndColor in '24 [38;5;252m' '12 [38;5;250m' '6 [38;5;246m' '4 [38;5;244m' '3 [38;5;240m' '2 [38;5;238m'
     do
 	factor="${factorAndColor%% *}"
 	color="${factorAndColor#* }"
