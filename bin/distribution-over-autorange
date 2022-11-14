@@ -234,5 +234,5 @@ fi
 
 typeset -a pager=("${PAGER:-less}" --RAW-CONTROL-CHARS); [ -t 1 ] || pager=()
 printf '%s\n' "${dates[@]}" | \
-    eval '"${distributionCommand[@]}" "${distributionSplitArgs[@]}" "${distributionArgs[@]}" "${distributionFooterArgs[@]}" "${distributionRenderArgs[@]}" "${distributionFieldSeparatorArgs[@]}"' \
+    eval '"${distributionCommand[@]}" "${distributionFieldSeparatorArgs[@]}" "${distributionFooterArgs[@]}" "${distributionRenderArgs[@]}" "${distributionSplitArgs[@]}" "${distributionArgs[@]}"' \
 	"${pager:+|}" '"${pager[@]}"'
