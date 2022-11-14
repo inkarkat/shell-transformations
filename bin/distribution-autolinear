@@ -98,7 +98,18 @@ then
 	|| distributionNoArgs=(--no-end-date)
 fi
 
-dayDiff="$(datediff --output days "$firstDate" "$lastDate")" || exit $?
+if [ -n "$baseDate" ]; then
+    # Need to consider the base date for the auto-scaling.
+    [ "$baseDate" = 'today' ] && baseDate="$(date +%Y-%m-%d)"
+    dayDiff="$({
+	    datediff --output days "$firstDate" "$lastDate"
+	    datediff --output days "$firstDate" "$baseDate"
+	    datediff --output days "$lastDate" "$baseDate"
+	} | sort --numeric | tail -n 1
+    )" || exit $?
+else
+    dayDiff="$(datediff --output days "$firstDate" "$lastDate")" || exit $?
+fi
 dayNum=$((dayDiff + 1))
 
 : ${width:=${DISTRIBUTIONDAYS_WIDTH:-$((${COLUMNS:-80} - ((2 - ${#distributionNoArgs[@]}) * 12) - 1))}}
