@@ -7,6 +7,7 @@
 : ${DISTRIBUTIONOVERTHEDAY_COLOR_LEGEND=}  # for the graph legend
 : ${DISTRIBUTIONOVERTHEDAY_COLOR_FOOTER=}  # for the footer legend
 : ${DISTRIBUTIONOVERTHEDAY_COLOR_UNITS=}   # for the hours at the bottom of the chart
+: ${DISTRIBUTIONOVERTHEDAY_COLOR_GRAPH=}   # for spark graph itself
 : ${DISTRIBUTIONOVERTHEDAY_COLOR_RESET=}   # undo the coloring
 
 typeset -a borders=()
@@ -137,25 +138,25 @@ do
 			case "$1" in
 			    colorbox-calendar)
 				sparkArgs+=(color-fullwidth-boxes)
-				DISTRIBUTIONOVERTHEDAY_EMPTY_CELL='  '
+				: ${DISTRIBUTIONOVERTHEDAY_EMPTY_CELL='  '}
 				export SPARK_EMPTY_DATA='  '
 				export SPARK_EMPTY=''
 				;;
 			    green-calendar)
 				sparkArgs+=(green-center-boxes)
-				DISTRIBUTIONOVERTHEDAY_COLOR_LEGEND='[01m'
-				DISTRIBUTIONOVERTHEDAY_COLOR_BORDER='[38;5;241m'
-				DISTRIBUTIONOVERTHEDAY_COLOR_UNITS='[38;5;241m'
-				DISTRIBUTIONOVERTHEDAY_COLOR_RESET='[0m'
-				DISTRIBUTIONOVERTHEDAY_EMPTY_CELL=' '
+				: ${DISTRIBUTIONOVERTHEDAY_COLOR_LEGEND='[01m'}
+				: ${DISTRIBUTIONOVERTHEDAY_COLOR_BORDER='[38;5;241m'}
+				: ${DISTRIBUTIONOVERTHEDAY_COLOR_UNITS='[38;5;241m'}
+				: ${DISTRIBUTIONOVERTHEDAY_COLOR_RESET='[0m'}
+				: ${DISTRIBUTIONOVERTHEDAY_EMPTY_CELL=' '}
 				;;
 			    green-large-calendar)
 				sparkArgs+=(green-double-center-squares)
-				DISTRIBUTIONOVERTHEDAY_COLOR_LEGEND='[01m'
-				DISTRIBUTIONOVERTHEDAY_COLOR_BORDER='[38;5;241m'
-				DISTRIBUTIONOVERTHEDAY_COLOR_UNITS='[38;5;241m'
-				DISTRIBUTIONOVERTHEDAY_COLOR_RESET='[0m'
-				DISTRIBUTIONOVERTHEDAY_EMPTY_CELL='  '
+				: ${DISTRIBUTIONOVERTHEDAY_COLOR_LEGEND='[01m'}
+				: ${DISTRIBUTIONOVERTHEDAY_COLOR_BORDER='[38;5;241m'}
+				: ${DISTRIBUTIONOVERTHEDAY_COLOR_UNITS='[38;5;241m'}
+				: ${DISTRIBUTIONOVERTHEDAY_COLOR_RESET='[0m'}
+				: ${DISTRIBUTIONOVERTHEDAY_EMPTY_CELL='  '}
 				;;
 			    *)	sparkArgs+=("$1");;
 			esac
@@ -302,7 +303,7 @@ printDistribution()
 
 	local legendWidth=$DISTRIBUTIONOVERTHEDAY_LEGEND_LENGTH
 
-	local B="$DISTRIBUTIONOVERTHEDAY_COLOR_BORDER" L="$DISTRIBUTIONOVERTHEDAY_COLOR_LEGEND" F="$DISTRIBUTIONOVERTHEDAY_COLOR_FOOTER" U="$DISTRIBUTIONOVERTHEDAY_COLOR_UNITS" R="$DISTRIBUTIONOVERTHEDAY_COLOR_RESET"
+	local B="$DISTRIBUTIONOVERTHEDAY_COLOR_BORDER" L="$DISTRIBUTIONOVERTHEDAY_COLOR_LEGEND" F="$DISTRIBUTIONOVERTHEDAY_COLOR_FOOTER" U="$DISTRIBUTIONOVERTHEDAY_COLOR_UNITS" G="$DISTRIBUTIONOVERTHEDAY_COLOR_GRAPH" R="$DISTRIBUTIONOVERTHEDAY_COLOR_RESET"
 	if [ "$isFooter" ]; then
 	    if [ -z "$legendWidth" ]; then
 		legendWidth=$((${#graphLegend} > ${#footerLegend} ? ${#graphLegend} : ${#footerLegend}))
@@ -321,14 +322,14 @@ printDistribution()
 		printf %s "$finalFooter"
 	    fi
 
-	    printf "%s%-${legendWidth}.${legendWidth}s%s%s%s%s\\n" "$L" "$graphLegend" "$R" "${B}${borders[0]}${R}" "$renderedDistribution" "${B}${borders[1]}${R}"
+	    printf "%s%-${legendWidth}.${legendWidth}s%s%s%s%s\\n" "$L" "$graphLegend" "${L:+$R}" "${B}${borders[0]}${B:+$R}" "${G}${renderedDistribution}${G:+$R}" "${B}${borders[1]}${B:+$R}"
 	    printf "${footerCapture[@]}" \
-		   "%s%-${legendWidth}.${legendWidth}s%s%s%s%s\\n" "$F" "$footerLegend" "$R" "${B}${borders[2]}${R}" "${U}${footer}${R}" "${B}${borders[3]}${R}"
+		   "%s%-${legendWidth}.${legendWidth}s%s%s%s%s\\n" "$F" "$footerLegend" "${F:+$R}" "${B}${borders[2]}${B:+$R}" "${U}${footer}${U:+$R}" "${B}${borders[3]}${B:+$R}"
 
 	    let footerCount+=1
 	else
 	    local completeLegend="$graphLegend"; [ -n "$graphLegend" -a -n "$footerLegend" ] && completeLegend+=' '; completeLegend+="$footerLegend"
-	    printf "%s%${legendWidth:+-}${legendWidth}${legendWidth:+.}${legendWidth}s%s%s\\n" "$L" "$completeLegend" "$R" "$renderedDistribution"
+	    printf "%s%${legendWidth:+-}${legendWidth}${legendWidth:+.}${legendWidth}s%s%s\\n" "$L" "$completeLegend" "${L:+$R}" "${G}${renderedDistribution}${G:+$R}"
 	fi
     done
 

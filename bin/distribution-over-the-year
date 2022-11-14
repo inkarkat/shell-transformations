@@ -7,6 +7,7 @@
 : ${DISTRIBUTIONOVERTHEYEAR_COLOR_LEGEND=}  # for the graph legend
 : ${DISTRIBUTIONOVERTHEYEAR_COLOR_FOOTER=}  # for the footer legend
 : ${DISTRIBUTIONOVERTHEYEAR_COLOR_UNITS=}   # for the weekdays left of the chart and the months at the bottom of the chart
+: ${DISTRIBUTIONOVERTHEYEAR_COLOR_GRAPH=}   # for spark graph itself
 : ${DISTRIBUTIONOVERTHEYEAR_COLOR_RESET=}   # undo the coloring
 
 typeset -a borders=()
@@ -132,29 +133,29 @@ do
 			case "$1" in
 			    colorbox-calendar)
 				sparkArgs+=(color-fullwidth-boxes)
-				DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL='  '
+				: ${DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL='  '}
 				export SPARK_EMPTY_DATA='  '
 				export SPARK_EMPTY=''
 				;;
 			    green-calendar)
 				sparkArgs+=(green-center-boxes)
-				DISTRIBUTIONOVERTHEYEAR_COLOR_LEGEND='[01m'
-				DISTRIBUTIONOVERTHEYEAR_COLOR_BORDER='[38;5;241m'
-				DISTRIBUTIONOVERTHEYEAR_COLOR_UNITS='[38;5;241m'
-				DISTRIBUTIONOVERTHEYEAR_COLOR_RESET='[0m'
-				[ "$isWeekly" ] && \
-				    DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL=' ' || \
-				    DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL='[38;5;253m🭽[0m'
+				: ${DISTRIBUTIONOVERTHEYEAR_COLOR_LEGEND='[01m'}
+				: ${DISTRIBUTIONOVERTHEYEAR_COLOR_BORDER='[38;5;241m'}
+				: ${DISTRIBUTIONOVERTHEYEAR_COLOR_UNITS='[38;5;241m'}
+				: ${DISTRIBUTIONOVERTHEYEAR_COLOR_RESET='[0m'}
+				[ "$isWeekly" ] \
+				    && : ${DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL=' '} \
+				    || : ${DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL='[38;5;253m🭽[0m'}
 				;;
 			    green-large-calendar)
 				sparkArgs+=(green-double-center-squares)
-				DISTRIBUTIONOVERTHEYEAR_COLOR_LEGEND='[01m'
-				DISTRIBUTIONOVERTHEYEAR_COLOR_BORDER='[38;5;241m'
-				DISTRIBUTIONOVERTHEYEAR_COLOR_UNITS='[38;5;241m'
-				DISTRIBUTIONOVERTHEYEAR_COLOR_RESET='[0m'
-				[ "$isWeekly" ] && \
-				    DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL='  ' || \
-				    DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL='[38;5;253m🭽▔[0m'
+				: ${DISTRIBUTIONOVERTHEYEAR_COLOR_LEGEND='[01m'}
+				: ${DISTRIBUTIONOVERTHEYEAR_COLOR_BORDER='[38;5;241m'}
+				: ${DISTRIBUTIONOVERTHEYEAR_COLOR_UNITS='[38;5;241m'}
+				: ${DISTRIBUTIONOVERTHEYEAR_COLOR_RESET='[0m'}
+				[ "$isWeekly" ] \
+				    && : ${DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL='  '} \
+				    || : ${DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL='[38;5;253m🭽▔[0m'}
 				;;
 			    *)	sparkArgs+=("$1");;
 			esac
@@ -411,7 +412,7 @@ printWeeklyDistribution()
 
 	local legendWidth=$DISTRIBUTIONOVERTHEYEAR_LEGEND_LENGTH
 
-	local B="$DISTRIBUTIONOVERTHEYEAR_COLOR_BORDER" L="$DISTRIBUTIONOVERTHEYEAR_COLOR_LEGEND" F="$DISTRIBUTIONOVERTHEYEAR_COLOR_FOOTER" U="$DISTRIBUTIONOVERTHEYEAR_COLOR_UNITS" R="$DISTRIBUTIONOVERTHEYEAR_COLOR_RESET"
+	local B="$DISTRIBUTIONOVERTHEYEAR_COLOR_BORDER" L="$DISTRIBUTIONOVERTHEYEAR_COLOR_LEGEND" F="$DISTRIBUTIONOVERTHEYEAR_COLOR_FOOTER" U="$DISTRIBUTIONOVERTHEYEAR_COLOR_UNITS" G="$DISTRIBUTIONOVERTHEYEAR_COLOR_GRAPH" R="$DISTRIBUTIONOVERTHEYEAR_COLOR_RESET"
 	if [ "$isFooter" ]; then
 	    if [ -z "$legendWidth" ]; then
 		legendWidth=$((${#graphLegend} > ${#footerLegend} ? ${#graphLegend} : ${#footerLegend}))
@@ -430,14 +431,14 @@ printWeeklyDistribution()
 		printf %s "$finalFooter"
 	    fi
 
-	    printf "%s%-${legendWidth}.${legendWidth}s%s%s%s%s\\n" "$L" "$graphLegend" "$R" "${B}${borders[0]}${R}" "$renderedDistribution" "${B}${borders[1]}${R}"
+	    printf "%s%-${legendWidth}.${legendWidth}s%s%s%s%s\\n" "$L" "$graphLegend" "${L:+$R}" "${B}${borders[0]}${B:+$R}" "${G}${renderedDistribution}${G:+$R}" "${B}${borders[1]}${B:+$R}"
 	    printf "${footerCapture[@]}" \
-		   "%s%-${legendWidth}.${legendWidth}s%s%s%s%s\\n" "$F" "$footerLegend" "$R" "${B}${borders[4]}${R}" "${U}${footer}${R}" "${B}${borders[5]}${R}"
+		   "%s%-${legendWidth}.${legendWidth}s%s%s%s%s\\n" "$F" "$footerLegend" "${F:+$R}" "${B}${borders[4]}${B:+$R}" "${U}${footer}${U:+$R}" "${B}${borders[5]}${B:+$R}"
 
 	    let footerCount+=1
 	else
 	    local completeLegend="$graphLegend"; [ -n "$graphLegend" -a -n "$footerLegend" ] && completeLegend+=' '; completeLegend+="$footerLegend"
-	    printf "%s%${legendWidth:+-}${legendWidth}${legendWidth:+.}${legendWidth}s%s%s\\n" "$L" "$completeLegend" "$R" "$renderedDistribution"
+	    printf "%s%${legendWidth:+-}${legendWidth}${legendWidth:+.}${legendWidth}s%s%s\\n" "$L" "$completeLegend" "${L:+$R}" "${G}${renderedDistribution}${G:+$R}"
 	fi
     done
 

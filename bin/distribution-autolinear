@@ -1,0 +1,168 @@
+#!/bin/bash
+
+getDefaultWidth()
+{
+    local exampleDate="$(date "+${DISTRIBUTIONDAYS_DATE_FORMAT-'%Y-%b-%d'}")"
+    printf %d $((${COLUMNS:-80} - ((2 - ${#distributionNoArgs[@]}) * ${#exampleDate}) - 1))
+}
+
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
+    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| %q %s\\n" "$(basename "$1")" '[--color=(always|auto|never)|--no-color] [-w|--width W] [--base-date today|"YYYY MM DD"] [--graph-legend TEXT] [--graph-field N] [--no-start-date] [--no-end-date] [-F|--field-separator FS] [--year YYYY |--year-field Y] [--month-field M] [--day-field N] [--days-per-slot N|--slots-per-day N|--no-day-zoom [--hour-field M]] [--count-field C [--default-count C|""]] [--split-days C|--split-graph-field N [--split-graph-field ...]] [--reversed] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
+}
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
+Print the distribution of the number of dates (assumed to be ordered, either
+from earliest to latest or in descending order) in a graph that adapts its width
+based on the range of input dates by scaling the number of slots per day or days
+per slot.
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    echo
+    cat <<HELPTEXT
+    --width|-w W	Choose the scaling so that the width of the actual graph
+			(without legend, start, and end dates) is less than W
+			(default: $(getDefaultWidth)).
+    --no-day-zoom	Do not use multiple slots per day even if there would be
+			enough width to show more than one number for a single
+			day.
+HELPTEXT
+}
+
+isColor=; [ -t 1 ] && isColor=t
+width=
+typeset -a distributionArgs=()
+typeset -a distributionFieldSeparatorArgs=(-F '[[:space:]:_/-]')
+typeset -a distributionNoArgs=()
+typeset -a distributionRenderArgs=()
+isAllowSlotsPerDay=t
+typeset -a distributionScaleArgs=()
+baseDate=
+isReversed=
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--no-color|--color=never)
+			isColor=; shift;;
+	--color=always)	isColor=t; shift;;
+	--color=auto)	shift;;
+	--color)	case "$2" in
+			    always) isColor=t;;
+			    never)  isColor=;;
+			    auto)   ;;
+			    *)	    echo >&2 "ERROR: Invalid --color arg: $2"
+				    echo >&2
+				    printUsage "$0" >&2
+				    exit 2
+				    ;;
+			esac
+			shift; shift
+			;;
+	--width|-w)	shift; width="${1:?}"; shift;;
+	--as)		distributionRenderArgs=("$1" "$2"); shift; shift;;
+	--no-day-zoom)	shift; isAllowSlotsPerDay=;;
+	--days-per-slot|--slots-per-day)
+			distributionScaleArgs+=("$1" "$2"); shift; shift;;
+	--field-separator|-F)
+			distributionFieldSeparatorArgs=("$1" "$2"); shift; shift;;
+	--base-date)	distributionArgs+=("$1" "$2"); shift; baseDate="$1"; shift;;
+	--no-start-date|--no-end-date)
+			distributionNoArgs+=("$1"); shift;;
+	--reversed)	distributionArgs+=("$1"); shift; isReversed=t;;
+	--)		distributionArgs+=("$1"); shift; break;;
+	*)		distributionArgs+=("$1"); shift;;
+    esac
+done
+
+readarray -t dates
+[ ${#dates[@]} -gt 0 ] || exit 99
+
+firstDate="${dates[0]%% *}"
+lastDate="${dates[-1]%% *}"
+
+if [ "$baseDate" = 'today' ] || {
+    [ ${#distributionNoArgs[@]} -eq 0 ] && today="$(date +%Y-%m-%d)" && {
+	[ $(datediff --output days "$firstDate" "$today") -eq 0 ] \
+	    || [ $(datediff --output days "$lastDate" "$today") -eq 0 ]
+	}
+    }
+then
+    # Assumption: Dates are in the past up to now, not in the future.
+    [ "$isReversed" ] \
+	&& distributionNoArgs=(--no-start-date) \
+	|| distributionNoArgs=(--no-end-date)
+fi
+
+if [ -n "$baseDate" ]; then
+    # Need to consider the base date for the auto-scaling.
+    [ "$baseDate" = 'today' ] && baseDate="$(date +%Y-%m-%d)"
+    dayDiff="$({
+	    datediff --output days "$firstDate" "$lastDate"
+	    datediff --output days "$firstDate" "$baseDate"
+	    datediff --output days "$lastDate" "$baseDate"
+	} | sort --numeric | tail -n 1
+    )" || exit $?
+else
+    dayDiff="$(datediff --output days "$firstDate" "$lastDate")" || exit $?
+fi
+dayNum=$((dayDiff + 1))
+
+# When scaling via --slots-per-day, add the time to the date (as long it's not
+# overridden) for more precision and to indicate the finer resolution.
+if [ -z "${DISTRIBUTIONDAYS_DATE_FORMAT+t}" -a ${#distributionScaleArgs[@]} -eq 0 -a $dayNum -le ${width:-${DISTRIBUTIONDAYS_WIDTH:-$(getDefaultWidth)}} ]; then
+    export DISTRIBUTIONDAYS_DATE_FORMAT='%Y-%b-%d %H:%M'
+fi
+
+: ${width:=${DISTRIBUTIONDAYS_WIDTH:-$(getDefaultWidth)}}
+
+typeset -a distributionCommand=(distribution-days)
+if [ ${#distributionScaleArgs[@]} -gt 0 ]; then
+    : # No auto-scaling.
+elif [ $dayNum -le $width ]; then
+    [ "$isAllowSlotsPerDay" ] && for factorAndColor in '24 [38;5;252m' '12 [38;5;250m' '6 [38;5;246m' '4 [38;5;244m' '3 [38;5;240m' '2 [38;5;238m'
+    do
+	factor="${factorAndColor%% *}"
+	color="${factorAndColor#* }"
+	if [ $((factor * dayNum)) -le $width ]; then
+	    distributionScaleArgs=(--slots-per-day $factor)
+	    [ "$isColor" ] && : ${DISTRIBUTIONDAYS_COLOR_GRAPH="$color"}
+	    break
+	fi
+    done
+
+    if [ "$isColor" ]; then
+	# Use the colors from --as green-calendar here, too.
+	: ${DISTRIBUTIONDAYS_COLOR_LEGEND='[01m'}
+	: ${DISTRIBUTIONDAYS_COLOR_BORDER='[38;5;241m'}
+	: ${DISTRIBUTIONDAYS_COLOR_UNITS='[38;5;241m'}
+	: ${DISTRIBUTIONDAYS_COLOR_RESET='[0m'}
+	: ${DISTRIBUTIONDAYS_EMPTY_CELL=' '}
+	export "${!DISTRIBUTIONDAYS_@}"
+    fi
+else
+    distributionScaleArgs=(--days-per-slot $((1 + (dayNum - 1) / width)))
+    if [ ${#distributionRenderArgs[@]} -eq 0 ]; then
+	[ "$isColor" ] \
+	    && distributionRenderArgs=(--as green-calendar) \
+	    || distributionRenderArgs=(--as sized-boxes)
+    fi
+fi
+
+typeset -a pager=("${PAGER:-less}" --RAW-CONTROL-CHARS); [ -t 1 ] || pager=()
+printf '%s\n' "${dates[@]}" | \
+    eval '"${distributionCommand[@]}" "${distributionFieldSeparatorArgs[@]}" "${distributionNoArgs[@]}" "${distributionRenderArgs[@]}" "${distributionScaleArgs[@]}" "${distributionArgs[@]}"' \
+	"${pager:+|}" '"${pager[@]}"'
