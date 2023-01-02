@@ -168,7 +168,10 @@ firstDate="${dates[0]%% *}"
 lastDate="${dates[-1]%% *}"
 [ -n "$forceRange" ] || monthDiff="$(datediff --output months "$firstDate" "$lastDate")" || exit $?
 if [ "$forceRange" = 'year' -o "$forceRange" = 'year-weekly' ] || { [ -z "$forceRange" ] && [ $monthDiff -gt $DISTRIBUTIONOVERAUTORANGE_MAX_GRAPHED_MONTHS ]; }; then
-    [ "$forceRange" = 'year-weekly' ] && isWeekly=t
+    if [ "$forceRange" = 'year-weekly' ]; then
+	isWeekly=t
+	distributionOverTheYearArgs+=(--weekly)
+    fi
     if [ "$isSplitting" ]; then
 	distributionSplitArgs=(--split-graph-field 1)
     elif ! contains --graph-legend "${distributionArgs[@]}" && ! contains --footer-legend "${distributionArgs[@]}"; then
