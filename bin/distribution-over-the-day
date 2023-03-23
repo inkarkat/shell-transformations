@@ -194,7 +194,7 @@ tally()
 BEGIN {
     splitFieldNrNum = split(splitFieldNrList, splitFieldNrs, "\n")
 
-    emptyCellWithoutAnsiEscapes = gensub(/\x1b\[[0-9:;]*[mK]/, "", "g", emptyCell)
+    emptyCellWithoutAnsiEscapes = gensub(/\x1b\[[0-9:;]*m/, "", "g", emptyCell)
     cellWidth = (emptyCellWithoutAnsiEscapes == "　" ? 2 : length(emptyCellWithoutAnsiEscapes)) # Rudimentary handling of fullwidth characters (just U+3000 IDEOGRAPHIC SPACE).
 }
 function printSection(      firstGraphedHour, lastGraphedHour, firstSlot, lastSlot, h, remainingLen, result, s)

@@ -204,7 +204,7 @@ BEGIN {
 	split("Jan ,Feb ,Mar  ,Apr ,May  ,Jun ,Jul ,Aug  ,Sep ,Oct ,Nov  ,Dec   ", monthLegend, /,/)
     }
 
-    emptyCellWithoutAnsiEscapes = gensub(/\x1b\[[0-9:;]*[mK]/, "", "g", emptyCell)
+    emptyCellWithoutAnsiEscapes = gensub(/\x1b\[[0-9:;]*m/, "", "g", emptyCell)
     cellWidth = (emptyCellWithoutAnsiEscapes == "　" ? 2 : length(emptyCellWithoutAnsiEscapes)) # Rudimentary handling of fullwidth characters (just U+3000 IDEOGRAPHIC SPACE).
 
     WEEK_OF_YEAR_FORMAT = ENVIRON["DISTRIBUTIONOVERTHEYEAR_WEEK_OF_YEAR_FORMAT"]

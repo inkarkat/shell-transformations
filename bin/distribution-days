@@ -234,7 +234,7 @@ BEGIN {
     splitFieldNrNum = split(splitFieldNrList, splitFieldNrs, "\n")
     splitSlots = (splitDays > 0 ? splitDays * slotNum : 2 ^ PREC)
 
-    emptyCellWithoutAnsiEscapes = gensub(/\x1b\[[0-9:;]*[mK]/, "", "g", emptyCell)
+    emptyCellWithoutAnsiEscapes = gensub(/\x1b\[[0-9:;]*m/, "", "g", emptyCell)
     cellWidth = (emptyCellWithoutAnsiEscapes == "　" ? 2 : length(emptyCellWithoutAnsiEscapes)) # Rudimentary handling of fullwidth characters (just U+3000 IDEOGRAPHIC SPACE).
 }
 function slotToDate(slot, isEnd,      hourOffset)
