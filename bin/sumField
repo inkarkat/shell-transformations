@@ -5,8 +5,10 @@ printUsage()
 {
     cat <<HELPTEXT
 Add up numbers in field N (-N counted from behind) / field with HEADER-NAME
-(implies --has-header), and print the sum.
+(implies --has-header), and print the sum. Exits with 99 if no numbers were
+encountered.
 HELPTEXT
+    echo
     printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-F|--field-separator FS] [-]N|HEADER-NAME'
     printf 'Usage: %q %s\n' "$(basename "$1")" '-i|--input FILESPEC [...] [-]N|HEADER-NAME [-?|-h|--help]'
 }
@@ -75,6 +77,10 @@ NR > 1 {
 }
 
 END {
-    if (sum != "") print sum
+    if (sum == "") {
+	exit 99
+    } else {
+	print sum
+    }
 }
 ' "${awkArgs[@]}"

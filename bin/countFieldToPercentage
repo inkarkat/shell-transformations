@@ -6,8 +6,9 @@ printUsage()
     cat <<HELPTEXT
 Convert the numbers in field N (-N counted from behind) / field with HEADER-NAME
 (implies --has-header) to their percentage proportion based on the total sum of
-that field.
+that field. Exits with 99 if no rows were encountered.
 HELPTEXT
+    echo
     printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-F|--field-separator FS] [-]N|HEADER-NAME'
     printf 'Usage: %q %s\n' "$(basename "$1")" '-i|--input FILESPEC [...] [-]N|HEADER-NAME [-?|-h|--help]'
 }
@@ -93,6 +94,10 @@ NR > 1 {
 }
 
 END {
+    if (NR == 0) {
+	exit 99
+    }
+
     for (i = 1; i <= NR; ++i) {
 	if (values[i] == "") {
 	    print records[i]

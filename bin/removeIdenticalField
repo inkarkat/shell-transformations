@@ -4,7 +4,7 @@ printUsage()
 {
     cat <<HELPTEXT
 Omit field N / field with HEADER-NAME (implies --has-header) if all of its
-values are identical.
+values are identical. Exits with 99 if no rows were encountered.
 HELPTEXT
     echo
     printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [--keep-single] [-F|--field-separator FS] N|HEADER-NAME'
@@ -137,7 +137,9 @@ NR > 1 {
 }
 
 END {
-    if (readLineNum == 1 && isKeepSingle) {
+    if (NR == 0) {
+	exit 99
+    } else if (readLineNum == 1 && isKeepSingle) {
 	# Although unique, keep the field if there is only a single record.
 	printReadLines(1)
     } else {

@@ -38,6 +38,11 @@ HELPDESCRIPTION
     --unit|-u UNIT  Append UNIT behind every value (except the counts), or in
 		    the legend if printed.
 
+EXIT STATUS:
+    0	Complete success.
+    2	Bad invocation, wrong or missing command-line arguments.
+    99	No input.
+
 Example:
 HELPTEXT
     printf 'cat datadump | %q %s\n' "$(basename "$1")" '--unit m/s'
@@ -79,7 +84,7 @@ fi
 
 analyze()
 {
-    IFS=$'\t' read -r min q1 median mean q3 max sstdev sum num unique < <(datamash min 1 q1 1 median 1 mean 1 q3 1 max 1 sstdev 1 sum 1 count 1 countunique 1)
+    IFS=$'\t' read -r min q1 median mean q3 max sstdev sum num unique < <(datamash min 1 q1 1 median 1 mean 1 q3 1 max 1 sstdev 1 sum 1 count 1 countunique 1) || exit 99
 
     if [ "$isAddLegend" ]; then
 	legendUnit=" (${unit})"
