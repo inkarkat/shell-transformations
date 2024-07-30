@@ -157,11 +157,6 @@ NR == 1 {
 	    printf "ERROR: No field number %d in\n%s\n", aggregateFieldNr, $0 > "/dev/stderr"
 	    exit 3
 	}
-
-	if (! hasHeader) {
-	    # No header with N; need to aggregate first line, too.
-	    count()
-	}
     } else {
 	if (! hasHeader) {
 	    print "ERROR: Need --has-header with HEADER-NAME: " aggregateFieldSpecifier > "/dev/stderr"
@@ -169,11 +164,20 @@ NR == 1 {
 	}
 
 	for (aggregateFieldNr = 1; aggregateFieldNr <= NF; aggregateFieldNr++) {
-	    if ($aggregateFieldNr == aggregateFieldSpecifier) next
+	    if ($aggregateFieldNr == aggregateFieldSpecifier) {
+		isFoundAggregateField = 1
+		break
+	    }
 	}
+	if (! isFoundAggregateField) {
+	    printf "ERROR: Could not locate field named %s in\n%s\n", aggregateFieldSpecifier, $0 > "/dev/stderr"
+	    exit 3
+	}
+    }
 
-	printf "ERROR: Could not locate field named %s in\n%s\n", aggregateFieldSpecifier, $0 > "/dev/stderr"
-	exit 3
+    if (! hasHeader) {
+	# No header; need to aggregate first line, too.
+	count()
     }
 }
 
