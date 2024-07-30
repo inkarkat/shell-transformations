@@ -5,7 +5,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-g|--group-by [-]N|HEADER-NAME [--sum-first]] [-F|--field-separator FIELD-SEPARATOR] [-s|--output-separator OUTPUT-SEPARATOR] [-]N|HEADER-NAME'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-g|--group-by [-]N|HEADER-NAME [--sum-first] [--sort-by [+-]group|[+-]sum]] [-F|--field-separator FIELD-SEPARATOR] [-s|--output-separator OUTPUT-SEPARATOR] [-]N|HEADER-NAME'
     printf 'Usage: %q %s\n' "$(basename "$1")" '-i|--input FILESPEC [-i ...] ... [-?|-h|--help]'
 }
 printUsage()
@@ -34,6 +34,9 @@ HELPDESCRIPTION
 			N / with HEADER-NAME. Report the sum for each group as
 			GROUP OFS SUM
     --sum-first	Report as SUM OFS GROUP instead of GROUP OFS SUM.
+    --sort-by [+-]group|[+-]sum
+			Sort the output by group or sum, ascending (+) or
+			descending (-).
 EXIT STATUS:
     99	If no numbers were encountered.
 HELPTEXT
@@ -45,6 +48,7 @@ outputSeparator=
 hasHeader=
 groupBy=
 isSumFirst=
+sorter=
 while [ $# -ne 0 ]
 do
     case "$1" in
@@ -52,6 +56,16 @@ do
 	--has-header)	shift; hasHeader=t;;
 	--group-by|-g)	shift; groupBy="${1:?}"; shift;;
 	--sum-first)	shift; isSumFirst=t;;
+	--sort-by)	shift
+			case "${1:?}" in
+			    ?(+)group)	sorter='@ind_str_asc';;
+			    -group)	sorter='@ind_str_desc';;
+			    ?(+)sum)	sorter='@val_num_asc';;
+			    -sum)	sorter='@val_num_desc';;
+			    *)		{ echo "ERROR: Unknown sort order: $1"; echo; printUsage "$0"; } >&2; exit 2;;
+			esac
+			shift
+			;;
 	--input|-i)		shift; awkArgs+=("$1"); shift;;
 	--field-separator|-F)	shift; fsArgs=(-F "$1"); shift;;
 	--output-separator|-s)
@@ -75,6 +89,7 @@ awk \
     -v "aggregateFieldSpecifier=${1:?}" \
     -v "groupByFieldSpecifier=${groupBy//\\/\\\\}" \
     -v "isSumFirst=$isSumFirst" \
+    -v "sorter=$sorter" \
 '
 function getFieldNr(fieldNr)
 {
@@ -90,6 +105,11 @@ function count(      keyFieldNr, valueFieldNr)
     } else {
 	keyFieldNr = getFieldNr(groupByFieldNr)
 	sum[$keyFieldNr] += $valueFieldNr
+    }
+}
+BEGIN {
+    if (sorter != "") {
+	PROCINFO["sorted_in"] = sorter
     }
 }
 NR == 1 {
