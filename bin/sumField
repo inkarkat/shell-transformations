@@ -5,7 +5,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-g|--group-by [-]N|HEADER-NAME] [-F|--field-separator FS] [-]N|HEADER-NAME'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-g|--group-by [-]N|HEADER-NAME] [-F|--field-separator FIELD-SEPARATOR] [-s|--output-separator OUTPUT-SEPARATOR] [-]N|HEADER-NAME'
     printf 'Usage: %q %s\n' "$(basename "$1")" '-i|--input FILESPEC [-i ...] ... [-?|-h|--help]'
 }
 printUsage()
@@ -40,6 +40,7 @@ HELPTEXT
 
 typeset -a fsArgs
 typeset -a awkArgs=()
+outputSeparator=
 hasHeader=
 groupBy=
 while [ $# -ne 0 ]
@@ -50,6 +51,8 @@ do
 	--group-by|-g)	shift; groupBy="${1:?}"; shift;;
 	--input|-i)		shift; awkArgs+=("$1"); shift;;
 	--field-separator|-F)	shift; fsArgs=(-F "$1"); shift;;
+	--output-separator|-s)
+			shift; outputSeparator="${1?}"; shift;;
 	--)		shift; break;;
 	-+([0-9]))	break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
@@ -64,6 +67,7 @@ fi
 
 awk \
     "${fsArgs[@]}" \
+    -v "outputSeparator=${outputSeparator//\\/\\\\}" \
     -v "hasHeader=$hasHeader" \
     -v "aggregateFieldSpecifier=${1:?}" \
     -v "groupByFieldSpecifier=${groupBy//\\/\\\\}" \
@@ -85,12 +89,18 @@ function count(      keyFieldNr, valueFieldNr)
     }
 }
 NR == 1 {
-    # Use FS as output separator if it is not a regular expression.
-    firstTwoFields = $1 FS $2
-    if (NF < 2 || substr($0, 1, length(firstTwoFields)) == firstTwoFields) {
-	OFS = FS
-    } else if (FS == " " && (substr($0, 1, length(firstTwoFields)) == $1 "\t" $2)) {
-	OFS = "\t"
+    # Use passed OUTPUT-SEPARATOR, fall back to FS unless it is a regular expression.
+    if (outputSeparator != "") {
+	OFS = outputSeparator
+    } else {
+	firstTwoFields = $1 FS $2
+	if (NF < 2 || substr($0, 1, length(firstTwoFields)) == firstTwoFields) {
+	    OFS = FS
+	} else if (FS == " ") {
+	    OFS = ((substr($0, 1, length(firstTwoFields)) == $1 "\t" $2) ? "\t" : " ")
+	} else {
+	    print "Note: Using space as default output field separator; change via -s|--output-separator OUTPUT-SEPARATOR or pass a non-regular expression -F|--field-separator FIELD-SEPARATOR." > "/dev/stderr"
+	}
     }
 
     if (groupByFieldSpecifier ~ /^-?[0-9]+$/) {
