@@ -100,6 +100,11 @@ NR == 1 {
 	    exit 3
 	}
     } else if (groupByFieldSpecifier != "") {
+	if (! hasHeader) {
+	    print "ERROR: Need --has-header with HEADER-NAME: " aggregateFieldSpecifier > "/dev/stderr"
+	    exit 2
+	}
+
 	for (groupByFieldNr = 1; groupByFieldNr <= NF; groupByFieldNr++) {
 	    if ($groupByFieldNr == groupByFieldSpecifier) {
 		isFoundGroupByField = 1
@@ -124,6 +129,11 @@ NR == 1 {
 	    count()
 	}
     } else {
+	if (! hasHeader) {
+	    print "ERROR: Need --has-header with HEADER-NAME: " aggregateFieldSpecifier > "/dev/stderr"
+	    exit 2
+	}
+
 	for (aggregateFieldNr = 1; aggregateFieldNr <= NF; aggregateFieldNr++) {
 	    if ($aggregateFieldNr == aggregateFieldSpecifier) next
 	}
