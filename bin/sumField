@@ -5,7 +5,9 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-g|--group-by [-]N|HEADER-NAME [--sum-first] [--sort-by [+-]group|[+-]sum]] [-F|--field-separator FIELD-SEPARATOR] [-s|--output-separator OUTPUT-SEPARATOR] [-]N|HEADER-NAME'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-F|--field-separator FIELD-SEPARATOR] [-s|--output-separator OUTPUT-SEPARATOR] [-]N|HEADER-NAME ...'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] -g|--group-by [-]N|HEADER-NAME [--sum-first] [--sort-by [+-]group|[+-]sum] [-F|--field-separator FIELD-SEPARATOR] [-s|--output-separator OUTPUT-SEPARATOR] [-]N|HEADER-NAME'
+    echo
     printf 'Usage: %q %s\n' "$(basename "$1")" '-i|--input FILESPEC [-i ...] ... [-?|-h|--help]'
 }
 printUsage()
@@ -20,8 +22,8 @@ printLongUsage()
     # This is the long "man page" when launched with the help argument.
     # It is printed to stdout to allow paging with 'more'.
     cat <<HELPDESCRIPTION
-Add up numbers in field N (-N counted from behind) / field with HEADER-NAME
-(implies --has-header), and print the sum.
+Add up numbers in field(s) N (-N counted from behind) / field(s) with
+HEADER-NAME (implies --has-header), and print the sum(s).
 HELPDESCRIPTION
     echo
     printShortUsage "$1"
@@ -30,9 +32,9 @@ HELPDESCRIPTION
     --has-header	First line is a header; use to look up HEADER-NAME, skip
 			it for calculation.
     --group-by|-g [-]N|HEADER-NAME
-			Add up numbers separately for each unique value in field
-			N / with HEADER-NAME. Report the sum for each group as
-			GROUP OFS SUM
+			Add up numbers separately for each unique value in
+			(single) field N / with HEADER-NAME. Report the sum for
+			each group as GROUP OFS SUM
     --sum-first	Report as SUM OFS GROUP instead of GROUP OFS SUM.
     --sort-by [+-]group|[+-]sum
 			Sort the output by group or sum, ascending (+) or
@@ -82,34 +84,43 @@ if [ $# -eq 0 ]; then
 fi
 
 
+IFS=$'\n'
 awk \
     "${fsArgs[@]}" \
     -v "outputSeparator=${outputSeparator//\\/\\\\}" \
     -v "hasHeader=$hasHeader" \
-    -v "aggregateFieldSpecifier=${1:?}" \
+    -v "aggregateFieldList=${*//\\/\\\\}" \
     -v "groupByFieldSpecifier=${groupBy//\\/\\\\}" \
     -v "isSumFirst=$isSumFirst" \
     -v "sorter=$sorter" \
 '
-function getFieldNr(fieldNr)
+function offsetSort(i1, v1, i2, v2)
 {
-    return (fieldNr ~ /^-/ ? NF + fieldNr + 1 : fieldNr)
-}
-function count(      keyFieldNr, valueFieldNr)
-{
-    valueFieldNr = getFieldNr(aggregateFieldNr)
-    if (valueFieldNr > NF) return
-
-    if (groupByFieldSpecifier == "") {
-	sum += $valueFieldNr
+    if (i1 < 0 && i2 > 0) {
+	return 1
+    } else if (i1 > 0 && i2 < 0) {
+	return -1
     } else {
-	keyFieldNr = getFieldNr(groupByFieldNr)
-	sum[$keyFieldNr] += $valueFieldNr
+	return i1 - i2
     }
+
 }
-BEGIN {
-    if (sorter != "") {
-	PROCINFO["sorted_in"] = sorter
+function getFieldNr(fieldOffset)
+{
+    return (fieldOffset ~ /^-/ ? NF + fieldOffset + 1 : fieldOffset)
+}
+function count(      keyFieldNr, valueFieldOffset, valueFieldNr)
+{
+    for (valueFieldOffset in aggregateFields) {
+	valueFieldNr = getFieldNr(valueFieldOffset)
+	if (valueFieldNr > NF) return
+
+	if (groupByFieldSpecifier == "") {
+	    aggregateFields[valueFieldOffset] += $valueFieldNr
+	} else {
+	    keyFieldNr = getFieldNr(groupByFieldNr)
+	    sum[$keyFieldNr] += $valueFieldNr
+	}
     }
 }
 NR == 1 {
@@ -151,27 +162,37 @@ NR == 1 {
 	}
     }
 
-    if (aggregateFieldSpecifier ~ /^-?[0-9]+$/) {
-	aggregateFieldNr = aggregateFieldSpecifier
-	if (getFieldNr(aggregateFieldNr) <= 0 || getFieldNr(aggregateFieldNr) > NF) {
-	    printf "ERROR: No field number %d in\n%s\n", aggregateFieldNr, $0 > "/dev/stderr"
-	    exit 3
-	}
-    } else {
-	if (! hasHeader) {
-	    print "ERROR: Need --has-header with HEADER-NAME: " aggregateFieldSpecifier > "/dev/stderr"
-	    exit 2
-	}
-
-	for (aggregateFieldNr = 1; aggregateFieldNr <= NF; aggregateFieldNr++) {
-	    if ($aggregateFieldNr == aggregateFieldSpecifier) {
-		isFoundAggregateField = 1
-		break
+    N = split(aggregateFieldList, aggregateFieldSpecifiers, "\n")
+    if (N > 1 && groupByFieldSpecifier != "") {
+	printf "ERROR: Cannot group by field and aggregate multiple fields at the same time.\n" > "/dev/stderr"
+	exit 2
+    }
+    for (i = 1; i <= N; ++i) {
+	isFoundAggregateField = 0
+	specifier = aggregateFieldSpecifiers[i]
+	if (specifier ~ /^-?[0-9]+$/) {
+	    aggregateFields[specifier] = ""
+	    if (getFieldNr(specifier) <= 0 || getFieldNr(specifier) > NF) {
+		printf "ERROR: No field number %d in\n%s\n", specifier, $0 > "/dev/stderr"
+		exit 3
 	    }
-	}
-	if (! isFoundAggregateField) {
-	    printf "ERROR: Could not locate field named %s in\n%s\n", aggregateFieldSpecifier, $0 > "/dev/stderr"
-	    exit 3
+	} else {
+	    if (! hasHeader) {
+		print "ERROR: Need --has-header with HEADER-NAME: " specifier > "/dev/stderr"
+		exit 2
+	    }
+
+	    for (fieldNr = 1; fieldNr <= NF; fieldNr++) {
+		if ($fieldNr == specifier) {
+		    aggregateFields[fieldNr] = ""
+		    isFoundAggregateField = 1
+		    break
+		}
+	    }
+	    if (! isFoundAggregateField) {
+		printf "ERROR: Could not locate field named %s in: %s\n", specifier, $0 > "/dev/stderr"
+		exit 3
+	    }
 	}
     }
 
@@ -187,6 +208,12 @@ NR > 1 {
 
 END {
     if (groupByFieldSpecifier == "") {
+	PROCINFO["sorted_in"] = "offsetSort"
+	for (valueFieldOffset in aggregateFields) {
+	    if (aggregateFields[valueFieldOffset] != "") {
+		sum = sum (sum == "" ? "" : OFS) aggregateFields[valueFieldOffset]
+	    }
+	}
 	if (sum == "") {
 	    exit 99
 	} else {
@@ -196,6 +223,9 @@ END {
 	if (length(sum) == 0) {
 	    exit 99
 	} else {
+	    if (sorter != "") {
+		PROCINFO["sorted_in"] = sorter
+	    }
 	    for (key in sum) {
 		if (isSumFirst) {
 		    printf("%d%s%s\n", sum[key], OFS, key)
