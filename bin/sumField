@@ -93,7 +93,7 @@ NR == 1 {
 	OFS = "\t"
     }
 
-    if (groupByFieldSpecifier ~ /^-?[0-9]+/) {
+    if (groupByFieldSpecifier ~ /^-?[0-9]+$/) {
 	groupByFieldNr = groupByFieldSpecifier
 	if (getFieldNr(groupByFieldNr) <= 0 || getFieldNr(groupByFieldNr) > NF) {
 	    printf "ERROR: No field number %d in\n%s\n", groupByFieldNr, $0 > "/dev/stderr"
@@ -117,7 +117,7 @@ NR == 1 {
 	}
     }
 
-    if (aggregateFieldSpecifier ~ /^-?[0-9]+/) {
+    if (aggregateFieldSpecifier ~ /^-?[0-9]+$/) {
 	aggregateFieldNr = aggregateFieldSpecifier
 	if (getFieldNr(aggregateFieldNr) <= 0 || getFieldNr(aggregateFieldNr) > NF) {
 	    printf "ERROR: No field number %d in\n%s\n", aggregateFieldNr, $0 > "/dev/stderr"

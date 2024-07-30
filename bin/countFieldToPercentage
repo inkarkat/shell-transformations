@@ -63,7 +63,7 @@ BEGIN {
     width = (FS == " " ? 4 : "")
 }
 NR == 1 {
-    if (aggregateFieldSpecifier ~ /^-?[0-9]+/) {
+    if (aggregateFieldSpecifier ~ /^-?[0-9]+$/) {
 	aggregateFieldNr = aggregateFieldSpecifier
 	if (getFieldNr() <= 0 || getFieldNr() > NF) {
 	    printf "ERROR: No field number %d in\n%s\n", aggregateFieldNr, $0 > "/dev/stderr"
