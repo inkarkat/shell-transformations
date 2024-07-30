@@ -5,7 +5,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-F|--field-separator FS] [-]N|HEADER-NAME'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-g|--group-by [-]N|HEADER-NAME] [-F|--field-separator FS] [-]N|HEADER-NAME'
     printf 'Usage: %q %s\n' "$(basename "$1")" '-i|--input FILESPEC [-i ...] ... [-?|-h|--help]'
 }
 printUsage()
@@ -29,6 +29,10 @@ HELPDESCRIPTION
     cat <<HELPTEXT
     --has-header	First line is a header; use to look up HEADER-NAME, skip
 			it for calculation.
+    --group-by|-g [-]N|HEADER-NAME
+			Add up numbers separately for each unique value in field
+			N / with HEADER-NAME. Report the sum for each group as
+			GROUP OFS SUM
 EXIT STATUS:
     99	If no numbers were encountered.
 HELPTEXT
@@ -37,11 +41,13 @@ HELPTEXT
 typeset -a fsArgs
 typeset -a awkArgs=()
 hasHeader=
+groupBy=
 while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
 	--has-header)	shift; hasHeader=t;;
+	--group-by|-g)	shift; groupBy="${1:?}"; shift;;
 	--input|-i)		shift; awkArgs+=("$1"); shift;;
 	--field-separator|-F)	shift; fsArgs=(-F "$1"); shift;;
 	--)		shift; break;;
@@ -60,21 +66,55 @@ awk \
     "${fsArgs[@]}" \
     -v "hasHeader=$hasHeader" \
     -v "aggregateFieldSpecifier=${1:?}" \
+    -v "groupByFieldSpecifier=${groupBy//\\/\\\\}" \
 '
-function getFieldNr()
+function getFieldNr(fieldNr)
 {
-    return (aggregateFieldNr ~ /^-/ ? NF + aggregateFieldNr + 1 : aggregateFieldNr)
+    return (fieldNr ~ /^-/ ? NF + fieldNr + 1 : fieldNr)
 }
-function count(      fieldNr)
+function count(      keyFieldNr, valueFieldNr)
 {
-    fieldNr = getFieldNr()
-    if (fieldNr > NF) return
-    sum += $fieldNr
+    valueFieldNr = getFieldNr(aggregateFieldNr)
+    if (valueFieldNr > NF) return
+
+    if (groupByFieldSpecifier == "") {
+	sum += $valueFieldNr
+    } else {
+	keyFieldNr = getFieldNr(groupByFieldNr)
+	sum[$keyFieldNr] += $valueFieldNr
+    }
 }
 NR == 1 {
+    # Use FS as output separator if it is not a regular expression.
+    firstTwoFields = $1 FS $2
+    if (NF < 2 || substr($0, 1, length(firstTwoFields)) == firstTwoFields) {
+	OFS = FS
+    } else if (FS == " " && (substr($0, 1, length(firstTwoFields)) == $1 "\t" $2)) {
+	OFS = "\t"
+    }
+
+    if (groupByFieldSpecifier ~ /^-?[0-9]+/) {
+	groupByFieldNr = groupByFieldSpecifier
+	if (getFieldNr(groupByFieldNr) <= 0 || getFieldNr(groupByFieldNr) > NF) {
+	    printf "ERROR: No field number %d in\n%s\n", groupByFieldNr, $0 > "/dev/stderr"
+	    exit 3
+	}
+    } else if (groupByFieldSpecifier != "") {
+	for (groupByFieldNr = 1; groupByFieldNr <= NF; groupByFieldNr++) {
+	    if ($groupByFieldNr == groupByFieldSpecifier) {
+		isFoundGroupByField = 1
+		break
+	    }
+	}
+	if (! isFoundGroupByField) {
+	    printf "ERROR: Could not locate field named %s in\n%s\n", groupByFieldSpecifier, $0 > "/dev/stderr"
+	    exit 3
+	}
+    }
+
     if (aggregateFieldSpecifier ~ /^-?[0-9]+/) {
 	aggregateFieldNr = aggregateFieldSpecifier
-	if (getFieldNr() <= 0 || getFieldNr() > NF) {
+	if (getFieldNr(aggregateFieldNr) <= 0 || getFieldNr(aggregateFieldNr) > NF) {
 	    printf "ERROR: No field number %d in\n%s\n", aggregateFieldNr, $0 > "/dev/stderr"
 	    exit 3
 	}
@@ -98,10 +138,20 @@ NR > 1 {
 }
 
 END {
-    if (sum == "") {
-	exit 99
+    if (groupByFieldSpecifier == "") {
+	if (sum == "") {
+	    exit 99
+	} else {
+	    print sum
+	}
     } else {
-	print sum
+	if (length(sum) == 0) {
+	    exit 99
+	} else {
+	    for (key in sum) {
+		printf("%s%s%s\n", key, OFS, sum[key])
+	    }
+	}
     }
 }
 ' "${awkArgs[@]}"
