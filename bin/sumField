@@ -135,7 +135,7 @@ NR == 1 {
 	}
     } else if (groupByFieldSpecifier != "") {
 	if (! hasHeader) {
-	    print "ERROR: Need --has-header with HEADER-NAME: " aggregateFieldSpecifier > "/dev/stderr"
+	    print "ERROR: Need --has-header with HEADER-NAME: " groupByFieldSpecifier > "/dev/stderr"
 	    exit 2
 	}
 
