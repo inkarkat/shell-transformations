@@ -1,28 +1,75 @@
 #!/bin/bash
 shopt -qs extglob
 
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-g|--group-by [-]N|HEADER-NAME [--sum-first] [--sort-by [+-]group|[+-]sum]] [-F|--field-separator FIELD-SEPARATOR] [-s|--output-separator OUTPUT-SEPARATOR] [-]N|HEADER-NAME'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '-i|--input FILESPEC [-i ...] ... [-?|-h|--help]'
+}
 printUsage()
 {
-    cat <<HELPTEXT
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
 Add up numbers in field N (-N counted from behind) / field with HEADER-NAME
-(implies --has-header), and print the sum. Exits with 99 if no numbers were
-encountered.
-HELPTEXT
+(implies --has-header), and print the sum.
+HELPDESCRIPTION
     echo
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-F|--field-separator FS] [-]N|HEADER-NAME'
-    printf 'Usage: %q %s\n' "$(basename "$1")" '-i|--input FILESPEC [...] [-]N|HEADER-NAME [-?|-h|--help]'
+    printShortUsage "$1"
+    echo
+    cat <<HELPTEXT
+    --has-header	First line is a header; use to look up HEADER-NAME, skip
+			it for calculation.
+    --group-by|-g [-]N|HEADER-NAME
+			Add up numbers separately for each unique value in field
+			N / with HEADER-NAME. Report the sum for each group as
+			GROUP OFS SUM
+    --sum-first	Report as SUM OFS GROUP instead of GROUP OFS SUM.
+    --sort-by [+-]group|[+-]sum
+			Sort the output by group or sum, ascending (+) or
+			descending (-).
+EXIT STATUS:
+    99	If no numbers were encountered.
+HELPTEXT
 }
 
 typeset -a fsArgs
 typeset -a awkArgs=()
+outputSeparator=
 hasHeader=
+groupBy=
+isSumFirst=
+sorter=
 while [ $# -ne 0 ]
 do
     case "$1" in
-	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
 	--has-header)	shift; hasHeader=t;;
+	--group-by|-g)	shift; groupBy="${1:?}"; shift;;
+	--sum-first)	shift; isSumFirst=t;;
+	--sort-by)	shift
+			case "${1:?}" in
+			    ?(+)group)	sorter='@ind_str_asc';;
+			    -group)	sorter='@ind_str_desc';;
+			    ?(+)sum)	sorter='@val_num_asc';;
+			    -sum)	sorter='@val_num_desc';;
+			    *)		{ echo "ERROR: Unknown sort order: $1"; echo; printUsage "$0"; } >&2; exit 2;;
+			esac
+			shift
+			;;
 	--input|-i)		shift; awkArgs+=("$1"); shift;;
 	--field-separator|-F)	shift; fsArgs=(-F "$1"); shift;;
+	--output-separator|-s)
+			shift; outputSeparator="${1?}"; shift;;
 	--)		shift; break;;
 	-+([0-9]))	break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
@@ -37,23 +84,76 @@ fi
 
 awk \
     "${fsArgs[@]}" \
+    -v "outputSeparator=${outputSeparator//\\/\\\\}" \
     -v "hasHeader=$hasHeader" \
     -v "aggregateFieldSpecifier=${1:?}" \
+    -v "groupByFieldSpecifier=${groupBy//\\/\\\\}" \
+    -v "isSumFirst=$isSumFirst" \
+    -v "sorter=$sorter" \
 '
-function getFieldNr()
+function getFieldNr(fieldNr)
 {
-    return (aggregateFieldNr ~ /^-/ ? NF + aggregateFieldNr + 1 : aggregateFieldNr)
+    return (fieldNr ~ /^-/ ? NF + fieldNr + 1 : fieldNr)
 }
-function count(      fieldNr)
+function count(      keyFieldNr, valueFieldNr)
 {
-    fieldNr = getFieldNr()
-    if (fieldNr > NF) return
-    sum += $fieldNr
+    valueFieldNr = getFieldNr(aggregateFieldNr)
+    if (valueFieldNr > NF) return
+
+    if (groupByFieldSpecifier == "") {
+	sum += $valueFieldNr
+    } else {
+	keyFieldNr = getFieldNr(groupByFieldNr)
+	sum[$keyFieldNr] += $valueFieldNr
+    }
+}
+BEGIN {
+    if (sorter != "") {
+	PROCINFO["sorted_in"] = sorter
+    }
 }
 NR == 1 {
-    if (aggregateFieldSpecifier ~ /^-?[0-9]+/) {
+    # Use passed OUTPUT-SEPARATOR, fall back to FS unless it is a regular expression.
+    if (outputSeparator != "") {
+	OFS = outputSeparator
+    } else {
+	firstTwoFields = $1 FS $2
+	if (NF < 2 || substr($0, 1, length(firstTwoFields)) == firstTwoFields) {
+	    OFS = FS
+	} else if (FS == " ") {
+	    OFS = ((substr($0, 1, length(firstTwoFields)) == $1 "\t" $2) ? "\t" : " ")
+	} else {
+	    print "Note: Using space as default output field separator; change via -s|--output-separator OUTPUT-SEPARATOR or pass a non-regular expression -F|--field-separator FIELD-SEPARATOR." > "/dev/stderr"
+	}
+    }
+
+    if (groupByFieldSpecifier ~ /^-?[0-9]+$/) {
+	groupByFieldNr = groupByFieldSpecifier
+	if (getFieldNr(groupByFieldNr) <= 0 || getFieldNr(groupByFieldNr) > NF) {
+	    printf "ERROR: No field number %d in\n%s\n", groupByFieldNr, $0 > "/dev/stderr"
+	    exit 3
+	}
+    } else if (groupByFieldSpecifier != "") {
+	if (! hasHeader) {
+	    print "ERROR: Need --has-header with HEADER-NAME: " aggregateFieldSpecifier > "/dev/stderr"
+	    exit 2
+	}
+
+	for (groupByFieldNr = 1; groupByFieldNr <= NF; groupByFieldNr++) {
+	    if ($groupByFieldNr == groupByFieldSpecifier) {
+		isFoundGroupByField = 1
+		break
+	    }
+	}
+	if (! isFoundGroupByField) {
+	    printf "ERROR: Could not locate field named %s in\n%s\n", groupByFieldSpecifier, $0 > "/dev/stderr"
+	    exit 3
+	}
+    }
+
+    if (aggregateFieldSpecifier ~ /^-?[0-9]+$/) {
 	aggregateFieldNr = aggregateFieldSpecifier
-	if (getFieldNr() <= 0 || getFieldNr() > NF) {
+	if (getFieldNr(aggregateFieldNr) <= 0 || getFieldNr(aggregateFieldNr) > NF) {
 	    printf "ERROR: No field number %d in\n%s\n", aggregateFieldNr, $0 > "/dev/stderr"
 	    exit 3
 	}
@@ -63,6 +163,11 @@ NR == 1 {
 	    count()
 	}
     } else {
+	if (! hasHeader) {
+	    print "ERROR: Need --has-header with HEADER-NAME: " aggregateFieldSpecifier > "/dev/stderr"
+	    exit 2
+	}
+
 	for (aggregateFieldNr = 1; aggregateFieldNr <= NF; aggregateFieldNr++) {
 	    if ($aggregateFieldNr == aggregateFieldSpecifier) next
 	}
@@ -77,10 +182,24 @@ NR > 1 {
 }
 
 END {
-    if (sum == "") {
-	exit 99
+    if (groupByFieldSpecifier == "") {
+	if (sum == "") {
+	    exit 99
+	} else {
+	    print sum
+	}
     } else {
-	print sum
+	if (length(sum) == 0) {
+	    exit 99
+	} else {
+	    for (key in sum) {
+		if (isSumFirst) {
+		    printf("%d%s%s\n", sum[key], OFS, key)
+		} else {
+		    printf("%s%s%d\n", key, OFS, sum[key])
+		}
+	    }
+	}
     }
 }
 ' "${awkArgs[@]}"
