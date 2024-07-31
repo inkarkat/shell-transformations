@@ -1,0 +1,272 @@
+#!/bin/bash
+shopt -qs extglob
+
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '--avg|--count|--join SEP|--max|--min|--sum [--has-header] [-F|--field-separator FIELD-SEPARATOR] [-s|--output-separator OUTPUT-SEPARATOR] [-]N|HEADER-NAME ...'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '--avg|--count|--join SEP|--max|--min|--sum [--has-header] -g|--group-by [-]N|HEADER-NAME [--result-first] [--sort-by [+-]group|[+-]result] [-F|--field-separator FIELD-SEPARATOR] [-s|--output-separator OUTPUT-SEPARATOR] [-]N|HEADER-NAME'
+    echo
+    printf 'Usage: %q %s\n' "$(basename "$1")" '-i|--input FILESPEC [-i ...] ... [-?|-h|--help]'
+}
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
+Aggregate numbers in field(s) N (-N counted from behind) / field(s) with
+HEADER-NAME (implies --has-header), and print the result(s).
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    echo
+    cat <<HELPTEXT
+    --avg		Calculate the average.
+    --count		Count the number of non-empty fields.
+    --join SEP		Concatenate all field values with SEP in between.
+    --max		Find the maximum.
+    --min		Find the minimum.
+    --sum		Calculate the sum.
+    --has-header	First line is a header; use to look up HEADER-NAME, skip
+			it for calculation.
+    --group-by|-g [-]N|HEADER-NAME
+			Aggregate numbers separately for each unique value in
+			(single) field N / with HEADER-NAME. Report the result for
+			each group as GROUP OFS RESULT
+    --result-first	Report as RESULT OFS GROUP instead of GROUP OFS RESULT.
+    --sort-by [+-]group|[+-]result
+			Sort the output by group or result, ascending (+) or
+			descending (-).
+EXIT STATUS:
+    99	If no numbers were encountered.
+HELPTEXT
+}
+
+typeset -a fsArgs
+typeset -a awkArgs=()
+outputSeparator=
+hasHeader=
+groupBy=
+isResultFirst=
+sorter=
+aggregator=
+joinSeparator=
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--avg|--count|--max|--min|--sum)
+			aggregator="${1#--}"; shift;;
+	--join)		aggregator="${1#--}"; shift; joinSeparator="${1?}"; shift;;
+	--has-header)	shift; hasHeader=t;;
+	--group-by|-g)	shift; groupBy="${1:?}"; shift;;
+	--result-first)	shift; isResultFirst=t;;
+	--sort-by)	shift
+			case "${1:?}" in
+			    ?(+)group)	sorter='@ind_str_asc';;
+			    -group)	sorter='@ind_str_desc';;
+			    ?(+)result)	sorter='@val_num_asc';;
+			    -result)	sorter='@val_num_desc';;
+			    *)		{ echo "ERROR: Unknown sort order: $1"; echo; printUsage "$0"; } >&2; exit 2;;
+			esac
+			shift
+			;;
+	--input|-i)		shift; awkArgs+=("$1"); shift;;
+	--field-separator|-F)	shift; fsArgs=(-F "$1"); shift;;
+	--output-separator|-s)
+			shift; outputSeparator="${1?}"; shift;;
+	--)		shift; break;;
+	-+([0-9]))	break;;
+	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		break;;
+    esac
+done
+if [ $# -eq 0 ]; then
+    printUsage "$0"
+    exit 2
+elif [ -z "$aggregator" ]; then
+    echo 'ERROR: No aggregator passed: One of --avg|--count|--join SEP|--max|--min|--sum.'
+    echo
+    printUsage "$0"
+    exit 2
+fi >&2
+
+
+typeset -A aggregators=(
+    [avg]='function aggregate(acc, val) { return acc + val; }'
+    [count]='function aggregate(acc, val) { return acc + (val == "" ? 0 : 1); }'
+    [join]='function aggregate(acc, val) { return acc (acc == "" ? "" : joinSeparator) val; }'
+    [max]='function aggregate(acc, val) { return (acc == "" || val > acc ? val : acc); }'
+    [min]='function aggregate(acc, val) { return (acc == "" || val < acc ? val : acc); }'
+    [sum]='function aggregate(acc, val) { return acc + val; }'
+)
+typeset -A reporters=(
+    [avg]="function report(acc) { return acc / (NR${hasHeader:+- 1}); }"
+)
+
+IFS=$'\n'
+awk \
+    "${fsArgs[@]}" \
+    -v "outputSeparator=${outputSeparator//\\/\\\\}" \
+    -v "hasHeader=$hasHeader" \
+    -v "aggregateFieldList=${*//\\/\\\\}" \
+    -v "groupByFieldSpecifier=${groupBy//\\/\\\\}" \
+    -v "isResultFirst=$isResultFirst" \
+    -v "sorter=$sorter" \
+    -v "joinSeparator=${joinSeparator//\\/\\\\}" \
+"${aggregators[$aggregator]}
+${reporters[$aggregator]:-function report(acc) { return acc;\}}
+"'
+function offsetSort(i1, v1, i2, v2)
+{
+    if (i1 < 0 && i2 > 0) {
+	return 1
+    } else if (i1 > 0 && i2 < 0) {
+	return -1
+    } else {
+	return i1 - i2
+    }
+
+}
+function getFieldNr(fieldOffset)
+{
+    return (fieldOffset ~ /^-/ ? NF + fieldOffset + 1 : fieldOffset)
+}
+function aggregateRecord(      keyFieldNr, valueFieldOffset, valueFieldNr)
+{
+    for (valueFieldOffset in aggregateFields) {
+	valueFieldNr = getFieldNr(valueFieldOffset)
+	if (valueFieldNr > NF) return
+
+	if (groupByFieldSpecifier == "") {
+	    aggregateFields[valueFieldOffset] = aggregate(aggregateFields[valueFieldOffset], $valueFieldNr)
+	} else {
+	    keyFieldNr = getFieldNr(groupByFieldNr)
+	    result[$keyFieldNr] = aggregate(result[$keyFieldNr], $valueFieldNr)
+	}
+    }
+}
+NR == 1 {
+    # Use passed OUTPUT-SEPARATOR, fall back to FS unless it is a regular expression.
+    if (outputSeparator != "") {
+	OFS = outputSeparator
+    } else {
+	firstTwoFields = $1 FS $2
+	if (NF < 2 || substr($0, 1, length(firstTwoFields)) == firstTwoFields) {
+	    OFS = FS
+	} else if (FS == " ") {
+	    OFS = ((substr($0, 1, length(firstTwoFields)) == $1 "\t" $2) ? "\t" : " ")
+	} else {
+	    print "Note: Using space as default output field separator; change via -s|--output-separator OUTPUT-SEPARATOR or pass a non-regular expression -F|--field-separator FIELD-SEPARATOR." > "/dev/stderr"
+	}
+    }
+
+    if (groupByFieldSpecifier ~ /^-?[0-9]+$/) {
+	groupByFieldNr = groupByFieldSpecifier
+	if (getFieldNr(groupByFieldNr) <= 0 || getFieldNr(groupByFieldNr) > NF) {
+	    printf "ERROR: No field number %d in\n%s\n", groupByFieldNr, $0 > "/dev/stderr"
+	    exit 3
+	}
+    } else if (groupByFieldSpecifier != "") {
+	if (! hasHeader) {
+	    print "ERROR: Need --has-header with HEADER-NAME: " groupByFieldSpecifier > "/dev/stderr"
+	    exit 2
+	}
+
+	for (groupByFieldNr = 1; groupByFieldNr <= NF; groupByFieldNr++) {
+	    if ($groupByFieldNr == groupByFieldSpecifier) {
+		isFoundGroupByField = 1
+		break
+	    }
+	}
+	if (! isFoundGroupByField) {
+	    printf "ERROR: Could not locate field named %s in\n%s\n", groupByFieldSpecifier, $0 > "/dev/stderr"
+	    exit 3
+	}
+    }
+
+    N = split(aggregateFieldList, aggregateFieldSpecifiers, "\n")
+    if (N > 1 && groupByFieldSpecifier != "") {
+	printf "ERROR: Cannot group by field and aggregate multiple fields at the same time.\n" > "/dev/stderr"
+	exit 2
+    }
+    for (i = 1; i <= N; ++i) {
+	isFoundAggregateField = 0
+	specifier = aggregateFieldSpecifiers[i]
+	if (specifier ~ /^-?[0-9]+$/) {
+	    aggregateFields[specifier] = ""
+	    if (getFieldNr(specifier) <= 0 || getFieldNr(specifier) > NF) {
+		printf "ERROR: No field number %d in\n%s\n", specifier, $0 > "/dev/stderr"
+		exit 3
+	    }
+	} else {
+	    if (! hasHeader) {
+		print "ERROR: Need --has-header with HEADER-NAME: " specifier > "/dev/stderr"
+		exit 2
+	    }
+
+	    for (fieldNr = 1; fieldNr <= NF; fieldNr++) {
+		if ($fieldNr == specifier) {
+		    aggregateFields[fieldNr] = ""
+		    isFoundAggregateField = 1
+		    break
+		}
+	    }
+	    if (! isFoundAggregateField) {
+		printf "ERROR: Could not locate field named %s in: %s\n", specifier, $0 > "/dev/stderr"
+		exit 3
+	    }
+	}
+    }
+
+    if (! hasHeader) {
+	# No header; need to aggregate first line, too.
+	aggregateRecord()
+    }
+}
+
+NR > 1 {
+    aggregateRecord()
+}
+
+END {
+    if (groupByFieldSpecifier == "") {
+	PROCINFO["sorted_in"] = "offsetSort"
+	for (valueFieldOffset in aggregateFields) {
+	    fieldResult = report(aggregateFields[valueFieldOffset])
+	    if (fieldResult != "") {
+		result = result (result == "" ? "" : OFS) fieldResult
+	    }
+	}
+	if (result == "") {
+	    exit 99
+	} else {
+	    print result
+	}
+    } else {
+	if (length(result) == 0) {
+	    exit 99
+	} else {
+	    if (sorter != "") {
+		PROCINFO["sorted_in"] = sorter
+	    }
+	    for (key in result) {
+		result = report(result[key])
+		if (isResultFirst) {
+		    printf("%s%s%s\n", result, OFS, key)
+		} else {
+		    printf("%s%s%s\n", key, OFS, result)
+		}
+	    }
+	}
+    }
+}
+' "${awkArgs[@]}"
