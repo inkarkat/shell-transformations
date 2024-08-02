@@ -5,8 +5,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '--avg|--count|--join SEP|--max|--min|--sum [--has-header] [-F|--field-separator FIELD-SEPARATOR] [-s|--output-separator OUTPUT-SEPARATOR] [-]N|HEADER-NAME ...'
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '--avg|--count|--join SEP|--max|--min|--sum [--has-header] -g|--group-by [-]N|HEADER-NAME [--result-first] [--sort-by [+-]group|[+-]result] [-F|--field-separator FIELD-SEPARATOR] [-s|--output-separator OUTPUT-SEPARATOR] [-]N|HEADER-NAME'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '--avg|--count|--join SEP|--max|--min|--sum [--has-header] -g|--group-by [-]N|HEADER-NAME [--result-first] [--sort-by [+-]group|[+-]result] [-F|--field-separator FIELD-SEPARATOR] [-s|--output-separator OUTPUT-SEPARATOR] [-]N|HEADER-NAME ...'
     echo
     printf 'Usage: %q %s\n' "$(basename "$1")" '-i|--input FILESPEC [-i ...] ... [-?|-h|--help]'
 }
@@ -40,11 +39,11 @@ HELPDESCRIPTION
     --group-by|-g [-]N|HEADER-NAME
 			Aggregate numbers separately for each unique value in
 			(single) field N / with HEADER-NAME. Report the result for
-			each group as GROUP OFS RESULT
-    --result-first	Report as RESULT OFS GROUP instead of GROUP OFS RESULT.
+			each group as GROUP OFS RESULT1 [OFS RESULT2 ...].
+    --result-first	Report as RESULT1 [OFS RESULT2 ...] OFS GROUP.
     --sort-by [+-]group|[+-]result
-			Sort the output by group or result, ascending (+) or
-			descending (-).
+			Sort the output by group or result (left to right),
+			ascending (+) or descending (-).
 EXIT STATUS:
     99	If no numbers were encountered.
 HELPTEXT
@@ -73,8 +72,8 @@ do
 			case "${1:?}" in
 			    ?(+)group)	sorter='@ind_str_asc';;
 			    -group)	sorter='@ind_str_desc';;
-			    ?(+)result)	sorter='@val_num_asc';;
-			    -result)	sorter='@val_num_desc';;
+			    ?(+)result)	sorter='groupValueAsc';;
+			    -result)	sorter='groupValueDesc';;
 			    *)		{ echo "ERROR: Unknown sort order: $1"; echo; printUsage "$0"; } >&2; exit 2;;
 			esac
 			shift
@@ -136,6 +135,24 @@ function offsetSort(i1, v1, i2, v2)
     }
 
 }
+function groupValueAsc(i1, v1, i2, v2,      cmp, saveSorter, j)
+{
+    cmp = 0
+    saveSorter = PROCINFO["sorted_in"]
+    PROCINFO["sorted_in"] = "offsetSort"
+	for (j in v1) {
+	    if (v1[j] != v2[j]) {
+		cmp = v1[j] - v2[j]
+		break
+	    }
+	}
+    PROCINFO["sorted_in"] = saveSorter
+    return cmp
+}
+function groupValueDesc(i1, v1, i2, v2)
+{
+    return groupValueAsc(i2, v2, i1, v1)
+}
 function getFieldNr(fieldOffset)
 {
     return (fieldOffset ~ /^-/ ? NF + fieldOffset + 1 : fieldOffset)
@@ -150,7 +167,7 @@ function aggregateRecord(      keyFieldNr, valueFieldOffset, valueFieldNr)
 	    aggregateFields[valueFieldOffset] = aggregate(aggregateFields[valueFieldOffset], $valueFieldNr)
 	} else {
 	    keyFieldNr = getFieldNr(groupByFieldNr)
-	    groupResults[$keyFieldNr] = aggregate(groupResults[$keyFieldNr], $valueFieldNr)
+	    groupResults[$keyFieldNr][valueFieldOffset] = aggregate(groupResults[$keyFieldNr][valueFieldOffset], $valueFieldNr)
 	}
     }
 }
@@ -194,10 +211,6 @@ NR == 1 {
     }
 
     N = split(aggregateFieldList, aggregateFieldSpecifiers, "\n")
-    if (N > 1 && groupByFieldSpecifier != "") {
-	printf "ERROR: Cannot group by field and aggregate multiple fields at the same time.\n" > "/dev/stderr"
-	exit 2
-    }
     for (i = 1; i <= N; ++i) {
 	isFoundAggregateField = 0
 	specifier = aggregateFieldSpecifiers[i]
@@ -259,7 +272,14 @@ END {
 		PROCINFO["sorted_in"] = sorter
 	    }
 	    for (key in groupResults) {
-		result = report(groupResults[key])
+		result = ""
+		PROCINFO["sorted_in"] = "offsetSort"
+		for (valueFieldOffset in groupResults[key]) {
+		    fieldResult = report(groupResults[key][valueFieldOffset])
+		    if (fieldResult != "") {
+			result = result (result == "" ? "" : OFS) fieldResult
+		    }
+		}
 		if (isResultFirst) {
 		    printf("%s%s%s\n", result, OFS, key)
 		} else {
