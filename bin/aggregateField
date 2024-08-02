@@ -150,7 +150,7 @@ function aggregateRecord(      keyFieldNr, valueFieldOffset, valueFieldNr)
 	    aggregateFields[valueFieldOffset] = aggregate(aggregateFields[valueFieldOffset], $valueFieldNr)
 	} else {
 	    keyFieldNr = getFieldNr(groupByFieldNr)
-	    result[$keyFieldNr] = aggregate(result[$keyFieldNr], $valueFieldNr)
+	    groupResults[$keyFieldNr] = aggregate(groupResults[$keyFieldNr], $valueFieldNr)
 	}
     }
 }
@@ -252,14 +252,14 @@ END {
 	    print result
 	}
     } else {
-	if (length(result) == 0) {
+	if (length(groupResults) == 0) {
 	    exit 99
 	} else {
 	    if (sorter != "") {
 		PROCINFO["sorted_in"] = sorter
 	    }
-	    for (key in result) {
-		result = report(result[key])
+	    for (key in groupResults) {
+		result = report(groupResults[key])
 		if (isResultFirst) {
 		    printf("%s%s%s\n", result, OFS, key)
 		} else {
