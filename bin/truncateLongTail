@@ -1,0 +1,96 @@
+#!/bin/bash
+shopt -qs extglob
+
+printUsage()
+{
+    cat <<HELPTEXT
+Observe the decreasing numbers in field N (-N counted from behind) / field with
+HEADER-NAME (implies --has-header) and suppress any output once a calculated
+threshold value is reached.
+HELPTEXT
+    echo
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-F|--field-separator FS] [-]N|HEADER-NAME'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '-i|--input FILESPEC [...] [-]N|HEADER-NAME [-?|-h|--help]'
+}
+
+typeset -a fsArgs
+typeset -a awkArgs=()
+hasHeader=
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+	--has-header)	shift; hasHeader=t;;
+	--input|-i)		shift; awkArgs+=("$1"); shift;;
+	--field-separator|-F)	shift; fsArgs=(-F "$1"); shift;;
+	--)		shift; break;;
+	-+([0-9]))	break;;
+	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		break;;
+    esac
+done
+if [ $# -eq 0 ]; then
+    printUsage >&2 "$0"
+    exit 2
+fi
+
+
+awk \
+    "${fsArgs[@]}" \
+    -v "hasHeader=$hasHeader" \
+    -v "valueFieldSpecifier=${1:?}" \
+'
+function getFieldNr()
+{
+    return (valueFieldNr ~ /^-/ ? NF + valueFieldNr + 1 : valueFieldNr)
+}
+function calculateCutOffValue()
+{
+    fieldNr = getFieldNr()
+    cutOffValue = 2 * log($fieldNr) # Empirical formula.
+}
+NR == 1 {
+    if (valueFieldSpecifier ~ /^-?[0-9]+$/) {
+	valueFieldNr = valueFieldSpecifier
+	fieldNr = getFieldNr()
+	if (fieldNr <= 0 || fieldNr > NF) {
+	    printf "ERROR: No field number %d in\n%s\n", valueFieldNr, $0 > "/dev/stderr"
+	    NR = 0	# Do not print first line.
+	    exit 3
+	}
+
+	if (! hasHeader) {
+	    # No header with N; take maximum value from first line.
+	    calculateCutOffValue()
+	}
+    } else {
+	for (valueFieldNr = 1; valueFieldNr <= NF; valueFieldNr++) {
+	    if ($valueFieldNr == valueFieldSpecifier) {
+		next
+	    }
+	}
+
+	printf "ERROR: Could not locate field named %s in\n%s\n", valueFieldSpecifier, $0 > "/dev/stderr"
+	NR = 0	# Do not print first line.
+	exit 3
+    }
+    print
+    next
+}
+NR == 2 && hasHeader {
+    calculateCutOffValue()
+    print
+    next
+}
+{
+    fieldNr = getFieldNr()
+    if ($fieldNr < cutOffValue) {
+	isCutOff = 1
+    } else if (isCutOff) {
+	printf "Warning: Value %d in line %d exceeds threshold %d again; the values in field %s are not decreasing.\n", $fieldNr, NR, cutOffValue, valueFieldSpecifier > "/dev/stderr"
+    } else {
+	print
+    }
+}
+
+' "${awkArgs[@]}"
