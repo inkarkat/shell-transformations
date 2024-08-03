@@ -5,7 +5,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '--avg|--count|--join SEP|--max|--min|--sum|--unique-counts [--has-header] -g|--group-by [-]N|HEADER-NAME [--result-first] [--sort-by [+-]group|[+-]result] [-F|--field-separator FIELD-SEPARATOR] [-s|--output-separator OUTPUT-SEPARATOR] [-]N|HEADER-NAME ...'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '--avg|--count|--join SEP|--max|--min|--sum|--unique-counts|--total-and-unique-counts [--has-header] -g|--group-by [-]N|HEADER-NAME [--result-first] [--sort-by [+-]group|[+-]result] [-F|--field-separator FIELD-SEPARATOR] [-s|--output-separator OUTPUT-SEPARATOR] [-]N|HEADER-NAME ...'
     echo
     printf 'Usage: %q %s\n' "$(basename "$1")" '-i|--input FILESPEC [-i ...] ... [-?|-h|--help]'
 }
@@ -36,6 +36,10 @@ HELPDESCRIPTION
     --sum		Calculate the sum.
     --unique-counts	Count the number of unique values and report each
 			separately (sorted alphabetically by value).
+    --total-and-unique-counts
+			Count the number of unique values and report the total
+			and each number separately (sorted alphabetically by
+			value).
     --has-header	First line is a header; use to look up HEADER-NAME, skip
 			it for calculation.
     --group-by|-g [-]N|HEADER-NAME
@@ -64,7 +68,7 @@ while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
-	--avg|--count|--max|--min|--sum|--unique-counts)
+	--avg|--count|--max|--min|--sum|--unique-counts|--total-and-unique-counts)
 			aggregator="${1#--}"; shift;;
 	--join)		aggregator="${1#--}"; shift; joinSeparator="${1?}"; shift;;
 	--has-header)	shift; hasHeader=t;;
@@ -103,6 +107,7 @@ fi >&2
 
 typeset -A valueKeyers=(
     [unique-counts]='function valueKeyer(val) { return val; }'
+    [total-and-unique-counts]='function valueKeyer(val) { return val; }'
 )
 typeset -A aggregators=(
     [avg]='function aggregate(acc, val) { return acc + val; }'
@@ -112,6 +117,7 @@ typeset -A aggregators=(
     [min]='function aggregate(acc, val) { return (acc == "" || val < acc ? val : acc); }'
     [sum]='function aggregate(acc, val) { return acc + val; }'
     [unique-counts]='function aggregate(acc, val) { return ++acc; }'
+    [total-and-unique-counts]='function aggregate(acc, val) { return ++acc; }'
 )
 typeset -A reporters=(
     [avg]="function report(acc) { return acc / (NR${hasHeader:+- 1}); }"
@@ -124,6 +130,17 @@ typeset -A reporters=(
 	}
 	PROCINFO["sorted_in"] = saveSorter
 	return result
+    }'
+    [total-and-unique-counts]='function report(acc,      result, total, saveSorter)
+    {
+	saveSorter = PROCINFO["sorted_in"]
+	PROCINFO["sorted_in"] = "@ind_str_asc"
+	for (val in acc) {
+	    result = result (result == "" ? "" : OFS) val ": " acc[val]
+	    total += acc[val]
+	}
+	PROCINFO["sorted_in"] = saveSorter
+	return total OFS result
     }'
 )
 
