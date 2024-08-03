@@ -5,7 +5,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '--avg|--count|--join SEP|--max|--min|--sum [--has-header] -g|--group-by [-]N|HEADER-NAME [--result-first] [--sort-by [+-]group|[+-]result] [-F|--field-separator FIELD-SEPARATOR] [-s|--output-separator OUTPUT-SEPARATOR] [-]N|HEADER-NAME ...'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '--avg|--count|--join SEP|--max|--min|--sum|--unique-counts [--has-header] -g|--group-by [-]N|HEADER-NAME [--result-first] [--sort-by [+-]group|[+-]result] [-F|--field-separator FIELD-SEPARATOR] [-s|--output-separator OUTPUT-SEPARATOR] [-]N|HEADER-NAME ...'
     echo
     printf 'Usage: %q %s\n' "$(basename "$1")" '-i|--input FILESPEC [-i ...] ... [-?|-h|--help]'
 }
@@ -34,6 +34,8 @@ HELPDESCRIPTION
     --max		Find the maximum.
     --min		Find the minimum.
     --sum		Calculate the sum.
+    --unique-counts	Count the number of unique values and report each
+			separately (sorted alphabetically by value).
     --has-header	First line is a header; use to look up HEADER-NAME, skip
 			it for calculation.
     --group-by|-g [-]N|HEADER-NAME
@@ -62,7 +64,7 @@ while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
-	--avg|--count|--max|--min|--sum)
+	--avg|--count|--max|--min|--sum|--unique-counts)
 			aggregator="${1#--}"; shift;;
 	--join)		aggregator="${1#--}"; shift; joinSeparator="${1?}"; shift;;
 	--has-header)	shift; hasHeader=t;;
@@ -99,6 +101,9 @@ elif [ -z "$aggregator" ]; then
 fi >&2
 
 
+typeset -A valueKeyers=(
+    [unique-counts]='function valueKeyer(val) { return val; }'
+)
 typeset -A aggregators=(
     [avg]='function aggregate(acc, val) { return acc + val; }'
     [count]='function aggregate(acc, val) { return acc + (val == "" ? 0 : 1); }'
@@ -106,9 +111,20 @@ typeset -A aggregators=(
     [max]='function aggregate(acc, val) { return (acc == "" || val > acc ? val : acc); }'
     [min]='function aggregate(acc, val) { return (acc == "" || val < acc ? val : acc); }'
     [sum]='function aggregate(acc, val) { return acc + val; }'
+    [unique-counts]='function aggregate(acc, val) { return ++acc; }'
 )
 typeset -A reporters=(
     [avg]="function report(acc) { return acc / (NR${hasHeader:+- 1}); }"
+    [unique-counts]='function report(acc,      result, saveSorter)
+    {
+	saveSorter = PROCINFO["sorted_in"]
+	PROCINFO["sorted_in"] = "@ind_str_asc"
+	for (val in acc) {
+	    result = result (result == "" ? "" : OFS) val ": " acc[val]
+	}
+	PROCINFO["sorted_in"] = saveSorter
+	return result
+    }'
 )
 
 IFS=$'\n'
@@ -121,8 +137,9 @@ awk \
     -v "isResultFirst=$isResultFirst" \
     -v "sorter=$sorter" \
     -v "joinSeparator=${joinSeparator//\\/\\\\}" \
-"${aggregators[$aggregator]}
-${reporters[$aggregator]:-function report(acc) { return acc;\}}
+"${valueKeyers[$aggregator]:-function valueKeyer(val) { return ""; \}}
+${aggregators[$aggregator]}
+${reporters[$aggregator]:-function report(acc) { return acc; \}}
 "'
 function offsetSort(i1, v1, i2, v2)
 {
@@ -163,11 +180,20 @@ function aggregateRecord(      keyFieldNr, valueFieldOffset, valueFieldNr)
 	valueFieldNr = getFieldNr(valueFieldOffset)
 	if (valueFieldNr > NF) return
 
+	valueKey = valueKeyer($valueFieldNr)
 	if (groupByFieldSpecifier == "") {
-	    aggregateFields[valueFieldOffset] = aggregate(aggregateFields[valueFieldOffset], $valueFieldNr)
+	    if (valueKey == "") {
+		aggregateFields[valueFieldOffset] = aggregate(aggregateFields[valueFieldOffset], $valueFieldNr)
+	    } else {
+		aggregateFields[valueFieldOffset][valueKey] = aggregate(aggregateFields[valueFieldOffset][valueKey], $valueFieldNr)
+	    }
 	} else {
 	    keyFieldNr = getFieldNr(groupByFieldNr)
-	    groupResults[$keyFieldNr][valueFieldOffset] = aggregate(groupResults[$keyFieldNr][valueFieldOffset], $valueFieldNr)
+	    if (valueKey == "") {
+		groupResults[$keyFieldNr][valueFieldOffset] = aggregate(groupResults[$keyFieldNr][valueFieldOffset], $valueFieldNr)
+	    } else {
+		groupResults[$keyFieldNr][valueFieldOffset][valueKey] = aggregate(groupResults[$keyFieldNr][valueFieldOffset][valueKey], $valueFieldNr)
+	    }
 	}
     }
 }
