@@ -1,28 +1,57 @@
 #!/bin/bash
 shopt -qs extglob
 
+: ${TRUNCATELONGTAIL_INCLUDE_SEPARATOR:=[...]}
+
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-F|--field-separator FS] [-m|--include PATTERN [-m ...]] [-]N|HEADER-NAME'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '-i|--input FILESPEC [...] [-]N|HEADER-NAME [-?|-h|--help]'
+}
 printUsage()
 {
-    cat <<HELPTEXT
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
 Observe the decreasing numbers in field N (-N counted from behind) / field with
 HEADER-NAME (implies --has-header) and suppress any output once a calculated
 threshold value is reached.
-HELPTEXT
+HELPDESCRIPTION
     echo
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-F|--field-separator FS] [-]N|HEADER-NAME'
-    printf 'Usage: %q %s\n' "$(basename "$1")" '-i|--input FILESPEC [...] [-]N|HEADER-NAME [-?|-h|--help]'
+    printShortUsage "$1"
+    echo
+    cat <<HELPTEXT
+    --include|-m PATTERN
+			Don't suppress lines that match PATTERN in the long
+			tail. ${TRUNCATELONGTAIL_INCLUDE_SEPARATOR:+A }${TRUNCATELONGTAIL_INCLUDE_SEPARATOR:-Nothing} is placed before it.
+			PATTERN is an AWK-style unanchored extended regular
+			expression.
+HELPTEXT
 }
 
+includePattern=
 typeset -a fsArgs
 typeset -a awkArgs=()
 hasHeader=
 while [ $# -ne 0 ]
 do
     case "$1" in
-	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
 	--has-header)	shift; hasHeader=t;;
-	--input|-i)		shift; awkArgs+=("$1"); shift;;
-	--field-separator|-F)	shift; fsArgs=(-F "$1"); shift;;
+	--input|-i)	shift; awkArgs+=("$1"); shift;;
+	--field-separator|-F)
+			shift; fsArgs=(-F "$1"); shift;;
+	--include|-m)	shift; includePattern+="${includePattern:+|}${1:?}"; shift;;
+	--include=*)	includePattern+="${includePattern:+|}${1#--include=}"; shift;;
 	--)		shift; break;;
 	-+([0-9]))	break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
@@ -39,6 +68,8 @@ awk \
     "${fsArgs[@]}" \
     -v "hasHeader=$hasHeader" \
     -v "valueFieldSpecifier=${1:?}" \
+    -v "includePattern=${includePattern//\/\\}" \
+    -v "includeSeparator=${TRUNCATELONGTAIL_INCLUDE_SEPARATOR//\\/\\\\}" \
 '
 function getFieldNr()
 {
@@ -86,10 +117,18 @@ NR == 2 && hasHeader {
     fieldNr = getFieldNr()
     if ($fieldNr < cutOffValue) {
 	isCutOff = 1
+	if (includePattern != "" && $0 ~ includePattern) {
+	    if (lastIncludedLnum != NR - 1 && includeSeparator != "") {
+		print includeSeparator
+	    }
+	    print
+	    lastIncludedLnum = NR
+	}
     } else if (isCutOff) {
 	printf "Warning: Value %d in line %d exceeds threshold %d again; the values in field %s are not decreasing.\n", $fieldNr, NR, cutOffValue, valueFieldSpecifier > "/dev/stderr"
     } else {
 	print
+	lastIncludedLnum = NR
     }
 }
 
