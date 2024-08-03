@@ -169,15 +169,26 @@ function offsetSort(i1, v1, i2, v2)
     }
 
 }
-function groupValueAsc(i1, v1, i2, v2,      cmp, saveSorter, j)
+function groupValueAsc(i1, v1, i2, v2,      cmp, saveSorter, j, t, t1, t2)
 {
     cmp = 0
     saveSorter = PROCINFO["sorted_in"]
     PROCINFO["sorted_in"] = "offsetSort"
-	for (j in v1) {
-	    if (v1[j] != v2[j]) {
-		cmp = v1[j] - v2[j]
-		break
+	if (valueKeyer("dummy") == "") {
+	    for (j in v1) {
+		if (v1[j] != v2[j]) {
+		    cmp = v1[j] - v2[j]
+		    break
+		}
+	    }
+	} else {
+	    for (j in v1) {
+		for (t in v1[j]) t1 += v1[j][t]
+		for (t in v2[j]) t2 += v2[j][t]
+		if (t1 != t2) {
+		    cmp = t1 - t2
+		    break
+		}
 	    }
 	}
     PROCINFO["sorted_in"] = saveSorter
