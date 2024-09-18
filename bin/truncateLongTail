@@ -2,13 +2,14 @@
 shopt -qs extglob
 
 : ${TRUNCATELONGTAIL_INCLUDE_SEPARATOR:=[...]}
+: ${TRUNCATELONGTAIL_INPUTFILES_END=;}
 
 printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
     printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-F|--field-separator FS] [-m|--include PATTERN [-m ...]] [-]N|HEADER-NAME'
-    printf 'Usage: %q %s\n' "$(basename "$1")" '-i|--input FILESPEC [...] [-]N|HEADER-NAME [-?|-h|--help]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" "... -i|--input FILE [-i ...]|--input-files FILE [...] ${TRUNCATELONGTAIL_INPUTFILES_END} [-]N|HEADER-NAME [-?|-h|--help]"
 }
 printUsage()
 {
@@ -35,19 +36,40 @@ HELPDESCRIPTION
 			tail. ${TRUNCATELONGTAIL_INCLUDE_SEPARATOR:+A }${TRUNCATELONGTAIL_INCLUDE_SEPARATOR:-Nothing} is placed before it.
 			PATTERN is an AWK-style unanchored extended regular
 			expression.
+    --input|-i FILE 	Read from FILE(s) instead of standard input.
+    --input-files FILE [...] ${TRUNCATELONGTAIL_INPUTFILES_END}
+			Read from the following FILE(s) i.e. all following
+			arguments until an argument consisting of '${TRUNCATELONGTAIL_INPUTFILES_END}' is
+			encountered instead of standard input.
 HELPTEXT
 }
 
 includePattern=
 typeset -a fsArgs
-typeset -a awkArgs=()
+typeset -a inputFilespecs=()
 hasHeader=
 while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
 	--has-header)	shift; hasHeader=t;;
-	--input|-i)	shift; awkArgs+=("$1"); shift;;
+	--input|-i)	shift; inputFilespecs+=("${1:?}"); shift;;
+	--input-files)	shift
+			while [ $# -gt 0 -a "$1" != "$TRUNCATELONGTAIL_INPUTFILES_END" ]
+			do
+			    inputFilespecs+=("$1")
+			    shift
+			done
+			if [ $# -eq 0 ]; then
+			    echo "ERROR: --input-files must be concluded with '${TRUNCATELONGTAIL_INPUTFILES_END}'"; echo; printUsage "$0"
+			    exit 2
+			fi >&2
+			shift
+			if [ ${#inputFilespecs[@]} -eq 0 ]; then
+			    echo 'ERROR: --input-files must be followed by at least one FILE.'; echo; printUsage "$0"
+			    exit 2
+			fi >&2
+			;;
 	--field-separator|-F)
 			shift; fsArgs=(-F "$1"); shift;;
 	--include|-m)	shift; includePattern+="${includePattern:+|}${1:?}"; shift;;
@@ -132,4 +154,4 @@ NR == 2 && hasHeader {
     }
 }
 
-' "${awkArgs[@]}"
+' "${inputFilespecs[@]}"

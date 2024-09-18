@@ -1,5 +1,7 @@
 #!/bin/bash
 
+: ${REMOVEIDENTICALFIELD_INPUTFILES_END=;}
+
 printUsage()
 {
     cat <<HELPTEXT
@@ -8,11 +10,11 @@ values are identical. Exits with 99 if no rows were encountered.
 HELPTEXT
     echo
     printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [--keep-single] [-F|--field-separator FS] N|HEADER-NAME'
-    printf 'Usage: %q %s\n' "$(basename "$1")" '-i|--input FILESPEC [...] N|HEADER-NAME [-?|-h|--help]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" "... -i|--input FILE [-i ...]|--input-files FILE [...] ${REMOVEIDENTICALFIELD_INPUTFILES_END} N|HEADER-NAME [-?|-h|--help]"
 }
 
 typeset -a fsArgs
-typeset -a awkArgs=()
+typeset -a inputFilespecs=()
 hasHeader=
 isKeepSingle=
 while [ $# -ne 0 ]
@@ -21,7 +23,23 @@ do
 	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
 	--has-header)	shift; hasHeader=t;;
 	--keep-single)	shift; isKeepSingle=t;;
-	--input|-i)		shift; awkArgs+=("$1"); shift;;
+	--input|-i)	shift; inputFilespecs+=("${1:?}"); shift;;
+	--input-files)	shift
+			while [ $# -gt 0 -a "$1" != "$REMOVEIDENTICALFIELD_INPUTFILES_END" ]
+			do
+			    inputFilespecs+=("$1")
+			    shift
+			done
+			if [ $# -eq 0 ]; then
+			    echo "ERROR: --input-files must be concluded with '${REMOVEIDENTICALFIELD_INPUTFILES_END}'"; echo; printUsage "$0"
+			    exit 2
+			fi >&2
+			shift
+			if [ ${#inputFilespecs[@]} -eq 0 ]; then
+			    echo 'ERROR: --input-files must be followed by at least one FILE.'; echo; printUsage "$0"
+			    exit 2
+			fi >&2
+			;;
 	--field-separator|-F)	shift; fsArgs=(-F "$1"); shift;;
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
@@ -146,4 +164,4 @@ END {
 	printReadLines(0)
     }
 }
-' "${awkArgs[@]}"
+' "${inputFilespecs[@]}"

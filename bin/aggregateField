@@ -1,13 +1,15 @@
 #!/bin/bash
 shopt -qs extglob
 
+: ${AGGREGATEFIELD_INPUTFILES_END=;}
+
 printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
     printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '--avg|--count|--join SEP|--max|--min|--sum|--unique-counts|--total-and-unique-counts [--has-header] -g|--group-by [-]N|HEADER-NAME [--result-first] [--sort-by [+-]group|[+-]result] [-F|--field-separator FIELD-SEPARATOR] [-s|--output-separator OUTPUT-SEPARATOR] [-]N|HEADER-NAME ...'
     echo
-    printf 'Usage: %q %s\n' "$(basename "$1")" '-i|--input FILESPEC [-i ...] ... [-?|-h|--help]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" "... -i|--input FILE [-i ...]|--input-files FILE [...] ${AGGREGATEFIELD_INPUTFILES_END} [-?|-h|--help]"
 }
 printUsage()
 {
@@ -44,19 +46,24 @@ HELPDESCRIPTION
 			it for calculation.
     --group-by|-g [-]N|HEADER-NAME
 			Aggregate numbers separately for each unique value in
-			(single) field N / with HEADER-NAME. Report the result for
-			each group as GROUP OFS RESULT1 [OFS RESULT2 ...].
+			(single) field N / with HEADER-NAME. Report the result
+			for each group as GROUP OFS RESULT1 [OFS RESULT2 ...].
     --result-first	Report as RESULT1 [OFS RESULT2 ...] OFS GROUP.
     --sort-by [+-]group|[+-]result
 			Sort the output by group or result (left to right),
 			ascending (+) or descending (-).
+    --input|-i FILE 	Read from FILE(s) instead of standard input.
+    --input-files FILE [...] ${AGGREGATEFIELD_INPUTFILES_END}
+			Read from the following FILE(s) i.e. all following
+			arguments until an argument consisting of '${AGGREGATEFIELD_INPUTFILES_END}'
+			is encountered instead of standard input.
 EXIT STATUS:
     99	If no numbers were encountered.
 HELPTEXT
 }
 
 typeset -a fsArgs
-typeset -a awkArgs=()
+typeset -a inputFilespecs=()
 outputSeparator=
 hasHeader=
 groupBy=
@@ -84,7 +91,23 @@ do
 			esac
 			shift
 			;;
-	--input|-i)		shift; awkArgs+=("$1"); shift;;
+	--input|-i)	shift; inputFilespecs+=("${1:?}"); shift;;
+	--input-files)	shift
+			while [ $# -gt 0 -a "$1" != "$AGGREGATEFIELD_INPUTFILES_END" ]
+			do
+			    inputFilespecs+=("$1")
+			    shift
+			done
+			if [ $# -eq 0 ]; then
+			    echo "ERROR: --input-files must be concluded with '${AGGREGATEFIELD_INPUTFILES_END}'"; echo; printUsage "$0"
+			    exit 2
+			fi >&2
+			shift
+			if [ ${#inputFilespecs[@]} -eq 0 ]; then
+			    echo 'ERROR: --input-files must be followed by at least one FILE.'; echo; printUsage "$0"
+			    exit 2
+			fi >&2
+			;;
 	--field-separator|-F)	shift; fsArgs=(-F "$1"); shift;;
 	--output-separator|-s)
 			shift; outputSeparator="${1?}"; shift;;
@@ -343,4 +366,4 @@ END {
 	}
     }
 }
-' "${awkArgs[@]}"
+' "${inputFilespecs[@]}"
