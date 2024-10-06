@@ -209,6 +209,8 @@ BEGIN {
 
     WEEK_OF_YEAR_FORMAT = ENVIRON["DISTRIBUTIONOVERTHEYEAR_WEEK_OF_YEAR_FORMAT"]
     if (WEEK_OF_YEAR_FORMAT == "") WEEK_OF_YEAR_FORMAT="%W"
+
+    delete count
 }
 function printFooter(      footer, i, j)
 {
