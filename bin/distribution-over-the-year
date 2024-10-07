@@ -69,7 +69,7 @@ HELPTEXT
 }
 
 typeset -a sparkArgs=()
-typeset -a sparkMinArg=(--min 0)
+typeset -a sparkMinArg=()
 typeset -a sparkMaxArg=()
 graphLegendText=
 graphFieldNr=
@@ -89,10 +89,16 @@ typeset -a footerCapture=()
 isFooterOnlyOnChange=
 footerEvery=
 typeset -a splitFieldNrs=()
+action=tallyAndPrint
+typeset -a inputDataClassificationArgs=()
+typeset -a allargs=("$@")
 while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--determine-count-range)
+			shift; action=determineCountRange;;
+
 	--no-footer)	shift; isFooter=;;
 	--final-footer-only)
 			shift; footerCapture=(-v finalFooter);;
@@ -105,15 +111,15 @@ do
 			shift; footerLegendText="$1"; shift;;
 	--footer-field)	shift; footerFieldNr="$1"; shift;;
 	--field-separator|-F)
-			shift; separator="${1:?}"; shift;;
-	--weekly)	shift; isWeekly=t;;
-	--year)		shift; year="${1:?}"; shift;;
-	--year-field)	shift; yearFieldNr="${1:?}"; shift;;
-	--month-field)  shift; monthFieldNr="${1:?}"; shift;;
-	--day-field)    shift; dayFieldNr="${1:?}"; shift;;
-	--count-field)	shift; countFieldNr="$1"; shift;;
+			inputDataClassificationArgs+=("$1" "$2"); shift; separator="${1:?}"; shift;;
+	--weekly)	inputDataClassificationArgs+=("$1"); shift; isWeekly=t;;
+	--year)		inputDataClassificationArgs+=("$1" "$2"); shift; year="${1:?}"; shift;;
+	--year-field)	inputDataClassificationArgs+=("$1" "$2"); shift; yearFieldNr="${1:?}"; shift;;
+	--month-field)  inputDataClassificationArgs+=("$1" "$2"); shift; monthFieldNr="${1:?}"; shift;;
+	--day-field)    inputDataClassificationArgs+=("$1" "$2"); shift; dayFieldNr="${1:?}"; shift;;
+	--count-field)	inputDataClassificationArgs+=("$1" "$2"); shift; countFieldNr="$1"; shift;;
 	--default-count)
-			shift; defaultCount="$1"; shift;;
+			inputDataClassificationArgs+=("$1" "$2"); shift; defaultCount="$1"; shift;;
 	--split-graph-field)
 			shift; splitFieldNrs+=("$1"); shift;;
 	--as)		sparkArgs+=("$1"); shift
@@ -183,7 +189,7 @@ typeset -a borders=()
 [ ${#borders[@]} -gt 0 ] && borders[-1]="${borders[-1]%$'\n'}"
 
 IFS=$'\n'
-tally()
+renderWith()
 {
     awk \
 	--field-separator "$separator" \
@@ -198,9 +204,73 @@ tally()
 	-v "defaultCount=$defaultCount" \
 	-v "splitFieldNrList=${splitFieldNrs[*]//\\/\\\\}" \
 	-v "emptyCell=${DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL//\\/\\\\}" \
-'
+	"$*"'
 BEGIN {
     splitFieldNrNum = split(splitFieldNrList, splitFieldNrs, "\n")
+    delete count
+    WEEK_OF_YEAR_FORMAT = ENVIRON["DISTRIBUTIONOVERTHEYEAR_WEEK_OF_YEAR_FORMAT"]
+    if (WEEK_OF_YEAR_FORMAT == "") WEEK_OF_YEAR_FORMAT="%W"
+    init()
+}
+{
+    for (i in splitFieldNrs) {
+	sf = splitFieldNrs[i]
+	if ($sf != "" && watchedFields[sf] != "" && watchedFields[sf] != $sf) {
+	    printSection()
+
+	    delete watchedFields
+	    for (sf in splitFieldNrs) {
+		if ($sf != "") watchedFields[sf] = $sf
+	    }
+	    break
+	} else if (watchedFields[sf] == "" && $sf != "") {
+	    watchedFields[sf] = $sf
+	}
+    }
+
+    if (graphFieldNr != "" && graphLegend == "") graphLegend = $graphFieldNr
+    if (footerFieldNr != "" && footerLegend == "") footerLegend = $footerFieldNr
+
+    thisYear = (year == "" ? $yearFieldNr : year)
+    epoch = mktime(thisYear " " $monthFieldNr " " $dayFieldNr " 12 00 00")
+    if (epoch == -1) {
+	printf("Invalid date in line %d: %s\n", NR, $0) > "/dev/stderr"
+	next
+    }
+
+    if (isWeekly) {
+	slot = int(strftime(WEEK_OF_YEAR_FORMAT, epoch))
+	print "**** [" slot "]" > "/dev/stderr"
+    } else {
+	dayOfYear = int(strftime("%j", epoch))
+	firstDayEpoch = mktime(thisYear " 01 01 12 00 00")
+	dayOfWeekOffset = int(strftime("%u", firstDayEpoch)) - 1 # Map the same weekday of different years to the same slot; it is less important if something happened Apr-1 or Apr-3, but rather whether it happened on the first Monday of April.
+
+	slot = dayOfYear + dayOfWeekOffset
+    }
+
+    if (countFieldNr == "") {
+	count[slot] += 1
+    } else if ($countFieldNr ~ /^-?[[:digit:]]+$/) {
+	count[slot] += int($countFieldNr)
+    } else if (defaultCount != "none") {
+	if (defaultCount != "") {
+	    count[slot] += defaultCount
+	}
+    } else {
+	printf("%s count in line %d: %s\n", ($countFieldNr == "" ? "Missing" : "Invalid"), NR, $0) > "/dev/stderr"
+    }
+}
+END {
+    printSection()
+}
+'
+}
+tally()
+{
+    renderWith '
+function init()
+{
     if (isWeekly) {
 	split(" Jan ,Feb ,Mar  ,Apr ,May ,Jun  ,Jul ,Aug ,Sep  ,Oct ,Nov ,Dec   ", monthLegend, /,/)
     } else {
@@ -209,11 +279,6 @@ BEGIN {
 
     emptyCellWithoutAnsiEscapes = gensub(/\x1b\[[0-9:;]*m/, "", "g", emptyCell)
     cellWidth = (emptyCellWithoutAnsiEscapes == "　" ? 2 : length(emptyCellWithoutAnsiEscapes)) # Rudimentary handling of fullwidth characters (just U+3000 IDEOGRAPHIC SPACE).
-
-    WEEK_OF_YEAR_FORMAT = ENVIRON["DISTRIBUTIONOVERTHEYEAR_WEEK_OF_YEAR_FORMAT"]
-    if (WEEK_OF_YEAR_FORMAT == "") WEEK_OF_YEAR_FORMAT="%W"
-
-    delete count
 }
 function printFooter(      footer, i, j)
 {
@@ -263,56 +328,38 @@ function render(v)
 {
     return (v == "" ? emptyCell : v)
 }
-{
-    for (i in splitFieldNrs) {
-	sf = splitFieldNrs[i]
-	if ($sf != "" && watchedFields[sf] != "" && watchedFields[sf] != $sf) {
-	    printSection()
-
-	    delete watchedFields
-	    for (sf in splitFieldNrs) {
-		if ($sf != "") watchedFields[sf] = $sf
-	    }
-	    break
-	} else if (watchedFields[sf] == "" && $sf != "") {
-	    watchedFields[sf] = $sf
-	}
-    }
-
-    if (graphFieldNr != "" && graphLegend == "") graphLegend = $graphFieldNr
-    if (footerFieldNr != "" && footerLegend == "") footerLegend = $footerFieldNr
-
-    thisYear = (year == "" ? $yearFieldNr : year)
-    epoch = mktime(thisYear " " $monthFieldNr " " $dayFieldNr " 12 00 00")
-    if (epoch == -1) {
-	printf("Invalid date in line %d: %s\n", NR, $0) > "/dev/stderr"
-	next
-    }
-
-    if (isWeekly) {
-	slot = int(strftime(WEEK_OF_YEAR_FORMAT, epoch))
-    } else {
-	dayOfYear = int(strftime("%j", epoch))
-	firstDayEpoch = mktime(thisYear " 01 01 12 00 00")
-	dayOfWeekOffset = int(strftime("%u", firstDayEpoch)) - 1 # Map the same weekday of different years to the same slot; it is less important if something happened Apr-1 or Apr-3, but rather whether it happened on the first Monday of April.
-
-	slot = dayOfYear + dayOfWeekOffset
-    }
-
-    if (countFieldNr == "") {
-	count[slot] += 1
-    } else if ($countFieldNr ~ /^-?[[:digit:]]+$/) {
-	count[slot] += int($countFieldNr)
-    } else if (defaultCount != "none") {
-	if (defaultCount != "") {
-	    count[slot] += defaultCount
-	}
-    } else {
-	printf("%s count in line %d: %s\n", ($countFieldNr == "" ? "Missing" : "Invalid"), NR, $0) > "/dev/stderr"
-    }
+'
 }
-END {
-    printSection()
+tallyAndPrint()
+{
+    tally \
+	| if [ "$isWeekly" ]; then
+	    printWeeklyDistribution
+	else
+	    printDailyDistribution
+	fi
+}
+determineCountRange()
+{
+    typeset -a rangeArgumentRender=()
+    [ ${#sparkMinArg[@]} -gt 0 ] \
+	|| rangeArgumentRender+=('printf("--min\n%d\n", (min == max && max > 0 ? min - 1 : min))')
+    [ ${#sparkMaxArg[@]} -gt 0 ] \
+	|| rangeArgumentRender+=('printf("--max\n%d\n", max)')
+
+    renderWith '
+function init()
+{
+    min = 2^PREC
+    max = 0
+}
+function printSection()
+{
+    for (slot in count) {
+	if (count[slot] < min) min = count[slot]
+	if (count[slot] > max) max = count[slot]
+    }
+'"${rangeArgumentRender[*]}"'
 }
 '
 }
@@ -451,9 +498,22 @@ printWeeklyDistribution()
     return $status
 }
 
-tally | \
-    if [ "$isWeekly" ]; then
-	printWeeklyDistribution
-    else
-	printDailyDistribution
-    fi
+if [ ${#splitFieldNrs[@]} -gt 0 ] && [ ${#sparkMinArg[@]} -eq 0 -o ${#sparkMaxArg[@]} -eq 0 ]; then
+    # With --split-graph-field, multiple graphs are generated. Unfortunately, the
+    # mapping of value ranges to sparklines is restarted for each graph unless the
+    # range has been fixed via --min and --max. The user perceives the entire output
+    # as one entity; we must not let the re-scaling happen, as it's highly
+    # misleading.
+    # Sadly, in order to determine the range, we first need to process the entire
+    # data once to find the minimum and maximum values. We reuse most of our
+    # processing logic by invoking ourselves with --determine-count-range; that
+    # extracts the minimum and maximum values as --min and --max command-line
+    # parameters, and the withPreprocessedInput command picks those up and then
+    # reinvokes ourselves, supplying the original input data once more. The added
+    # min/max parameters break the recursion.
+    exec withPreprocessedInput \
+	--preprocess-exec "${BASH_SOURCE[0]}" --determine-count-range "${inputDataClassificationArgs[@]}" "${sparkMinArg[@]}" "${sparkMaxArg[@]}" \; \
+	--exec "${BASH_SOURCE[0]}" '{@}' "${allargs[@]}" \;
+fi
+
+$action
