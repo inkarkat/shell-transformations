@@ -70,6 +70,8 @@ HELPTEXT
 }
 
 typeset -a sparkArgs=()
+typeset -a sparkMinArg=(--min 0)
+typeset -a sparkMaxArg=()
 graphLegendText=
 graphFieldNr=
 footerLegendText=
@@ -86,7 +88,6 @@ isFooterOnlyOnChange=
 footerEvery=
 slotNum=1
 typeset -a splitFieldNrs=()
-typeset -a sparkArgs=()
 while [ $# -ne 0 ]
 do
     case "$1" in
@@ -141,6 +142,8 @@ do
 			esac
 			shift
 			;;
+	--min)		sparkMinArg+=("$1" "${2:?}"); shift;shift;;
+	--max)		sparkMaxArg+=("$1" "${2:?}"); shift;shift;;
 	--)		sparkArgs+=("$1"); shift; break;;
 	*)		sparkArgs+=("$1"); shift;;
     esac
@@ -278,7 +281,7 @@ printDistribution()
 	local data; IFS=$'\n' read -r data || break
 
 	local sparkEmptyOverride; [ -n "${SPARK_EMPTY+t}" ] || sparkEmptyOverride='SPARK_EMPTY="$DISTRIBUTIONOVERTHEMONTH_EMPTY_CELL"'
-	local renderedDistribution; renderedDistribution="$(eval "$sparkEmptyOverride" 'spark --min 0 "${sparkArgs[@]}" "$data"')" && status=0 || exit $?
+	local renderedDistribution; renderedDistribution="$(eval "$sparkEmptyOverride" 'spark "${sparkMinArg[@]}" "${sparkMaxArg[@]}" "${sparkArgs[@]}" "$data"')" && status=0 || exit $?
 
 	local legendWidth=$DISTRIBUTIONOVERTHEMONTH_LEGEND_LENGTH
 

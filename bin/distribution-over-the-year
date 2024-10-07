@@ -69,6 +69,8 @@ HELPTEXT
 }
 
 typeset -a sparkArgs=()
+typeset -a sparkMinArg=(--min 0)
+typeset -a sparkMaxArg=()
 graphLegendText=
 graphFieldNr=
 footerLegendText=
@@ -87,7 +89,6 @@ typeset -a footerCapture=()
 isFooterOnlyOnChange=
 footerEvery=
 typeset -a splitFieldNrs=()
-typeset -a sparkArgs=()
 while [ $# -ne 0 ]
 do
     case "$1" in
@@ -147,6 +148,8 @@ do
 			esac
 			shift
 			;;
+	--min)		sparkMinArg+=("$1" "${2:?}"); shift;shift;;
+	--max)		sparkMaxArg+=("$1" "${2:?}"); shift;shift;;
 	--)		sparkArgs+=("$1"); shift; break;;
 	*)		sparkArgs+=("$1"); shift;;
     esac
@@ -348,7 +351,7 @@ printDailyDistribution()
 	done
 
 	local sparkEmptyOverride; [ -n "${SPARK_EMPTY+t}" ] || sparkEmptyOverride='SPARK_EMPTY="$DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL"'
-	readarray -t renderedLines < <(eval "$sparkEmptyOverride" 'spark --min 0 "${sparkArgs[@]}" "$wholeWeekData"'; printf '\n%d\n' "$?")	# Exit status from the process substitution is lost; return the actual exit status via an appended additional line.
+	readarray -t renderedLines < <(eval "$sparkEmptyOverride" 'spark "${sparkMinArg[@]}" "${sparkMaxArg[@]}" "${sparkArgs[@]}" "$wholeWeekData"'; printf '\n%d\n' "$?")	# Exit status from the process substitution is lost; return the actual exit status via an appended additional line.
 	[ ${renderedLines[-1]} -eq 0 ] && status=0 || exit ${renderedLines[-1]}
 	unset 'renderedLines[-1]'
 	[ -z "${renderedLines[-1]}" ] && unset 'renderedLines[-1]'
@@ -410,7 +413,7 @@ printWeeklyDistribution()
 	local data; IFS=$'\n' read -r data || break
 
 	local sparkEmptyOverride; [ -n "${SPARK_EMPTY+t}" ] || sparkEmptyOverride='SPARK_EMPTY="$DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL"'
-	local renderedDistribution; renderedDistribution="$(eval "$sparkEmptyOverride" 'spark --min 0 "${sparkArgs[@]}" "$data"')" && status=0 || exit $?
+	local renderedDistribution; renderedDistribution="$(eval "$sparkEmptyOverride" 'spark "${sparkMinArg[@]}" "${sparkMaxArg[@]}" "${sparkArgs[@]}" "$data"')" && status=0 || exit $?
 
 	local legendWidth=$DISTRIBUTIONOVERTHEYEAR_LEGEND_LENGTH
 

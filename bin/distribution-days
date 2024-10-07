@@ -76,6 +76,8 @@ HELPTEXT
 }
 
 typeset -a sparkArgs=()
+typeset -a sparkMinArg=(--min 0)
+typeset -a sparkMaxArg=()
 baseDate=
 graphLegendText=
 graphFieldNr=
@@ -94,7 +96,6 @@ slotNum=1
 splitDays=0
 typeset -a splitFieldNrs=()
 isReversed=
-typeset -a sparkArgs=()
 while [ $# -ne 0 ]
 do
     case "$1" in
@@ -149,6 +150,8 @@ do
 			esac
 			shift
 			;;
+	--min)		sparkMinArg+=("$1" "${2:?}"); shift;shift;;
+	--max)		sparkMaxArg+=("$1" "${2:?}"); shift;shift;;
 	--)		sparkArgs+=("$1"); shift; break;;
 	*)		sparkArgs+=("$1"); shift;;
     esac
@@ -375,7 +378,7 @@ printDistribution()
 	local endDate; IFS=$'\n' read -r endDate || break
 
 	local sparkEmptyOverride; [ -n "${SPARK_EMPTY+t}" ] || sparkEmptyOverride='SPARK_EMPTY="$DISTRIBUTIONDAYS_EMPTY_CELL"'
-	local renderedDistribution; renderedDistribution="$(eval "$sparkEmptyOverride" 'spark --min 0 "${sparkArgs[@]}" "$data"')" && status=0 || exit $?
+	local renderedDistribution; renderedDistribution="$(eval "$sparkEmptyOverride" 'spark "${sparkMinArg[@]}" "${sparkMaxArg[@]}" "${sparkArgs[@]}" "$data"')" && status=0 || exit $?
 
 	[ "$isStartDate" ] || startDate=''
 	[ "$isEndDate" ] || endDate=''
