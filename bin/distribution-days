@@ -5,7 +5,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| [DISTRIBUTIONDAYS_EMPTY_CELL='-'] [DISTRIBUTIONDAYS_BORDERS='< >'] [DISTRIBUTIONDAYS_DATE_FORMAT='%%Y-%%m-%%d'] [DISTRIBUTIONDAYS_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--base-date today|"YYYY MM DD"] [--graph-legend TEXT] [--graph-field N] [--no-start-date] [--no-end-date] [-F|--field-separator FS] [--year YYYY |--year-field Y] [--month-field M] [--day-field N] [--days-per-slot N|--slots-per-day N [--hour-field M]] [--count-field C [--default-count C|""]] [--split-days C|--split-graph-field N [--split-graph-field ...]] [--reversed] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| [DISTRIBUTIONDAYS_EMPTY_CELL='-'] [DISTRIBUTIONDAYS_BORDERS='< >'] [DISTRIBUTIONDAYS_DATE_FORMAT='%%Y-%%m-%%d'] [DISTRIBUTIONDAYS_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--base-date today|"YYYY MM DD"] [--graph-legend TEXT] [--graph-field N] [--no-start-date] [--no-end-date] [-F|--field-separator FS] [--year YYYY |--year-field Y] [--month-field M] [--day-field N] [--days-per-slot N|--slots-per-day N [--hour-field M]] [--count-field C [--default-count C|""]] [--split-days C|--split-graph-field N [--split-graph-field ...] [--rescale-each-graph]] [--reversed] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -67,6 +67,11 @@ HELPDESCRIPTION
 			Whenever the non-empty value of column N changes, start
 			a new graph. If you want to graph every month
 			separately, pass the year and month columns here.
+    --rescale-each-graph
+			Render the values of each split graph independently of
+			the other graphs; i.e. each series shows its values with
+			the most detail, but cannot be directly compared with
+			the others.
     --reversed		Graph newest to oldest dates from left to right, instead
 			of making time pass from left to right. This helps with
 			anchoring multiple historical graphs on the same (latest)
@@ -99,6 +104,7 @@ isReversed=
 action=
 typeset -a inputDataClassificationArgs=()
 typeset -a allargs=("$@")
+isSingleCountRange=t
 while [ $# -ne 0 ]
 do
     case "$1" in
@@ -127,6 +133,8 @@ do
 	--split-days)	inputDataClassificationArgs+=("$1" "$2"); shift; splitDays="$1"; shift;;
 	--split-graph-field)
 			inputDataClassificationArgs+=("$1" "$2"); shift; splitFieldNrs+=("$1"); shift;;
+	--rescale-each-graph)
+			shift; isSingleCountRange=;;
 	--reversed)	shift; isReversed=t;;
 	--as)		sparkArgs+=("$1"); shift
 			case "$1" in
@@ -437,7 +445,7 @@ printDistribution()
     return $status
 }
 
-if [ -z "$action" ] && [ $splitDays -gt 0 -o ${#splitFieldNrs[@]} -gt 0 ] && [ ${#sparkMinArg[@]} -eq 0 -o ${#sparkMaxArg[@]} -eq 0 ]; then
+if [ -z "$action" ] && [ "$isSingleCountRange" ] && [ $splitDays -gt 0 -o ${#splitFieldNrs[@]} -gt 0 ] && [ ${#sparkMinArg[@]} -eq 0 -o ${#sparkMaxArg[@]} -eq 0 ]; then
     # With --split-days or --split-graph-field, multiple graphs are generated.
     # Unfortunately, the mapping of value ranges to sparklines is restarted for each
     # graph unless the range has been fixed via --min and --max. The user perceives
