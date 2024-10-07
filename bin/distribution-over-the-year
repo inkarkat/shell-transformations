@@ -89,7 +89,7 @@ typeset -a footerCapture=()
 isFooterOnlyOnChange=
 footerEvery=
 typeset -a splitFieldNrs=()
-action=tallyAndPrint
+action=
 typeset -a inputDataClassificationArgs=()
 typeset -a allargs=("$@")
 while [ $# -ne 0 ]
@@ -121,7 +121,7 @@ do
 	--default-count)
 			inputDataClassificationArgs+=("$1" "$2"); shift; defaultCount="$1"; shift;;
 	--split-graph-field)
-			shift; splitFieldNrs+=("$1"); shift;;
+			inputDataClassificationArgs+=("$1" "$2"); shift; splitFieldNrs+=("$1"); shift;;
 	--as)		sparkArgs+=("$1"); shift
 			case "$1" in
 			    colorbox-calendar)
@@ -204,7 +204,7 @@ renderWith()
 	-v "defaultCount=$defaultCount" \
 	-v "splitFieldNrList=${splitFieldNrs[*]//\\/\\\\}" \
 	-v "emptyCell=${DISTRIBUTIONOVERTHEYEAR_EMPTY_CELL//\\/\\\\}" \
-	"$*"'
+	"$1"'
 BEGIN {
     splitFieldNrNum = split(splitFieldNrList, splitFieldNrs, "\n")
     delete count
@@ -264,7 +264,7 @@ BEGIN {
 END {
     printSection()
 }
-'
+'"$2"
 }
 tally()
 {
@@ -359,6 +359,10 @@ function printSection()
 	if (count[slot] < min) min = count[slot]
 	if (count[slot] > max) max = count[slot]
     }
+    delete count
+}' \
+'
+END {
 '"${rangeArgumentRender[*]}"'
 }
 '
@@ -498,7 +502,7 @@ printWeeklyDistribution()
     return $status
 }
 
-if [ ${#splitFieldNrs[@]} -gt 0 ] && [ ${#sparkMinArg[@]} -eq 0 -o ${#sparkMaxArg[@]} -eq 0 ]; then
+if [ -z "$action" ] && [ ${#splitFieldNrs[@]} -gt 0 ] && [ ${#sparkMinArg[@]} -eq 0 -o ${#sparkMaxArg[@]} -eq 0 ]; then
     # With --split-graph-field, multiple graphs are generated. Unfortunately, the
     # mapping of value ranges to sparklines is restarted for each graph unless the
     # range has been fixed via --min and --max. The user perceives the entire output
@@ -516,4 +520,4 @@ if [ ${#splitFieldNrs[@]} -gt 0 ] && [ ${#sparkMinArg[@]} -eq 0 -o ${#sparkMaxAr
 	--exec "${BASH_SOURCE[0]}" '{@}' "${allargs[@]}" \;
 fi
 
-$action
+${action:-tallyAndPrint}
