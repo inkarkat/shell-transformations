@@ -148,8 +148,8 @@ do
 			esac
 			shift
 			;;
-	--min)		sparkMinArg+=("$1" "${2:?}"); shift;shift;;
-	--max)		sparkMaxArg+=("$1" "${2:?}"); shift;shift;;
+	--min)		sparkMinArg=("$1" "${2:?}"); shift;shift;;
+	--max)		sparkMaxArg=("$1" "${2:?}"); shift;shift;;
 	--)		sparkArgs+=("$1"); shift; break;;
 	*)		sparkArgs+=("$1"); shift;;
     esac
