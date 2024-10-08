@@ -458,7 +458,7 @@ if [ -z "$action" ] && [ "$isSingleCountRange" ] && [ $splitDays -gt 0 -o ${#spl
     # parameters, and the withPreprocessedInput command picks those up and then
     # reinvokes ourselves, supplying the original input data once more. The added
     # min/max parameters break the recursion.
-    exec withPreprocessedInput \
+    exec withPreprocessedInput --parallel-preprocess \
 	--preprocess-exec "${BASH_SOURCE[0]}" --determine-count-range "${inputDataClassificationArgs[@]}" "${sparkMinArg[@]}" "${sparkMaxArg[@]}" \; \
 	--exec "${BASH_SOURCE[0]}" '{@}' "${allargs[@]}" \;
 fi

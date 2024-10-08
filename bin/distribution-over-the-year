@@ -515,7 +515,7 @@ if [ -z "$action" ] && [ ${#splitFieldNrs[@]} -gt 0 ] && [ ${#sparkMinArg[@]} -e
     # parameters, and the withPreprocessedInput command picks those up and then
     # reinvokes ourselves, supplying the original input data once more. The added
     # min/max parameters break the recursion.
-    exec withPreprocessedInput \
+    exec withPreprocessedInput --parallel-preprocess \
 	--preprocess-exec "${BASH_SOURCE[0]}" --determine-count-range "${inputDataClassificationArgs[@]}" "${sparkMinArg[@]}" "${sparkMaxArg[@]}" \; \
 	--exec "${BASH_SOURCE[0]}" '{@}' "${allargs[@]}" \;
 fi
