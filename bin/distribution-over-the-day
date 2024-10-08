@@ -73,6 +73,8 @@ HELPTEXT
 }
 
 typeset -a sparkArgs=()
+typeset -a sparkMinArg=()
+typeset -a sparkMaxArg=()
 graphLegendText=
 graphFieldNr=
 footerLegendText=
@@ -91,11 +93,16 @@ isFooterOnlyOnChange=
 footerEvery=
 slotNum=4
 typeset -a splitFieldNrs=()
-typeset -a sparkArgs=()
+action=
+typeset -a inputDataClassificationArgs=()
+typeset -a allargs=("$@")
 while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--determine-count-range)
+			shift; action=determineCountRange;;
+
 	--no-footer)	shift; isFooter=;;
 	--final-footer-only)
 			shift; footerCapture=(-v finalFooter);;
@@ -108,18 +115,18 @@ do
 			shift; footerLegendText="$1"; shift;;
 	--footer-field)	shift; footerFieldNr="$1"; shift;;
 	--field-separator|-F)
-			shift; separator="${1:?}"; shift;;
-	--hour-field)   shift; hourFieldNr="${1:?}"; shift;;
-	--minute-field)	shift; minuteFieldNr="${1:?}"; shift;;
-	--first-hour)	shift; firstHour="$1"; shift;;
-	--last-hour)	shift; lastHour="$1"; shift;;
+			inputDataClassificationArgs+=("$1" "$2"); shift; separator="${1:?}"; shift;;
+	--hour-field)   inputDataClassificationArgs+=("$1" "$2"); shift; hourFieldNr="${1:?}"; shift;;
+	--minute-field)	inputDataClassificationArgs+=("$1" "$2"); shift; minuteFieldNr="${1:?}"; shift;;
+	--first-hour)	inputDataClassificationArgs+=("$1" "$2"); shift; firstHour="$1"; shift;;
+	--last-hour)	inputDataClassificationArgs+=("$1" "$2"); shift; lastHour="$1"; shift;;
 	--slots-per-hour)
-			shift; slotNum="$1"; shift;;
-	--count-field)	shift; countFieldNr="$1"; shift;;
+			inputDataClassificationArgs+=("$1" "$2"); shift; slotNum="$1"; shift;;
+	--count-field)	inputDataClassificationArgs+=("$1" "$2"); shift; countFieldNr="$1"; shift;;
 	--default-count)
-			shift; defaultCount="$1"; shift;;
+			inputDataClassificationArgs+=("$1" "$2"); shift; defaultCount="$1"; shift;;
 	--split-graph-field)
-			shift; splitFieldNrs+=("$1"); shift;;
+			inputDataClassificationArgs+=("$1" "$2"); shift; splitFieldNrs+=("$1"); shift;;
 	--as)		sparkArgs+=("$1"); shift
 			case "$1" in
 			    colorbox-calendar)
@@ -148,6 +155,8 @@ do
 			esac
 			shift
 			;;
+	--min)		sparkMinArg=("$1" "${2:?}"); shift;shift;;
+	--max)		sparkMaxArg=("$1" "${2:?}"); shift;shift;;
 	--)		sparkArgs+=("$1"); shift; break;;
 	*)		sparkArgs+=("$1"); shift;;
     esac
@@ -175,7 +184,7 @@ typeset -a borders=()
 [ ${#borders[@]} -gt 0 ] && borders[-1]="${borders[-1]%$'\n'}"
 
 IFS=$'\n'
-tally()
+renderWith()
 {
     awk \
 	--field-separator "$separator" \
@@ -190,51 +199,11 @@ tally()
 	-v "defaultCount=$defaultCount" \
 	-v "splitFieldNrList=${splitFieldNrs[*]//\\/\\\\}" \
 	-v "emptyCell=${DISTRIBUTIONOVERTHEDAY_EMPTY_CELL//\\/\\\\}" \
-'
+	"$1"'
 BEGIN {
     splitFieldNrNum = split(splitFieldNrList, splitFieldNrs, "\n")
-
-    emptyCellWithoutAnsiEscapes = gensub(/\x1b\[[0-9:;]*m/, "", "g", emptyCell)
-    cellWidth = (emptyCellWithoutAnsiEscapes == "　" ? 2 : length(emptyCellWithoutAnsiEscapes)) # Rudimentary handling of fullwidth characters (just U+3000 IDEOGRAPHIC SPACE).
-
     delete count
-}
-function printSection(      firstGraphedHour, lastGraphedHour, firstSlot, lastSlot, h, remainingLen, result, s)
-{
-    if (length(count) == 0) return
-
-    print graphLegend; graphLegend = ""
-    print footerLegend; footerLegend = ""
-
-    firstGraphedHour = (firstHour == "" ? firstReportedHour : firstHour); firstReportedHour = ""
-    lastGraphedHour = (lastHour == "" ? lastReportedHour : lastHour); lastReportedHour = ""
-    firstSlot = firstGraphedHour * slotNum
-    lastSlot = (lastGraphedHour + 1) * slotNum - 1
-
-    hourWidth = slotNum * cellWidth
-    if (hourWidth >= 2) {
-	for (h = firstGraphedHour; h <= lastGraphedHour; ++h) {
-	    printf("%-" hourWidth "." hourWidth "s", h)
-	}
-    } else {
-	remainingLen = lastSlot - firstSlot + 1
-	for (h = firstGraphedHour; h < lastGraphedHour - 1; h += 3) {
-	    printf("%-3.3s", h)
-	    remainingLen -= 3
-	}
-	printf("%-" remainingLen "s", (remainingLen < length(lastGraphedHour) ? "" : lastGraphedHour))
-    }
-    printf "\n"
-
-    result = render(count[firstSlot])
-    for (s = firstSlot + 1; s <= lastSlot; ++s) {
-	result = result "," render(count[s])
-    }
-    print result; delete count
-}
-function render(v)
-{
-    return (v == "" ? emptyCell : v)
+    init()
 }
 {
     for (i in splitFieldNrs) {
@@ -279,6 +248,85 @@ function render(v)
 END {
     printSection()
 }
+'"$2"
+}
+tally()
+{
+    renderWith '
+function init()
+{
+    emptyCellWithoutAnsiEscapes = gensub(/\x1b\[[0-9:;]*m/, "", "g", emptyCell)
+    cellWidth = (emptyCellWithoutAnsiEscapes == "　" ? 2 : length(emptyCellWithoutAnsiEscapes)) # Rudimentary handling of fullwidth characters (just U+3000 IDEOGRAPHIC SPACE).
+}
+function printSection(      firstGraphedHour, lastGraphedHour, firstSlot, lastSlot, h, remainingLen, result, s)
+{
+    if (length(count) == 0) return
+
+    print graphLegend; graphLegend = ""
+    print footerLegend; footerLegend = ""
+
+    firstGraphedHour = (firstHour == "" ? firstReportedHour : firstHour); firstReportedHour = ""
+    lastGraphedHour = (lastHour == "" ? lastReportedHour : lastHour); lastReportedHour = ""
+    firstSlot = firstGraphedHour * slotNum
+    lastSlot = (lastGraphedHour + 1) * slotNum - 1
+
+    hourWidth = slotNum * cellWidth
+    if (hourWidth >= 2) {
+	for (h = firstGraphedHour; h <= lastGraphedHour; ++h) {
+	    printf("%-" hourWidth "." hourWidth "s", h)
+	}
+    } else {
+	remainingLen = lastSlot - firstSlot + 1
+	for (h = firstGraphedHour; h < lastGraphedHour - 1; h += 3) {
+	    printf("%-3.3s", h)
+	    remainingLen -= 3
+	}
+	printf("%-" remainingLen "s", (remainingLen < length(lastGraphedHour) ? "" : lastGraphedHour))
+    }
+    printf "\n"
+
+    result = render(count[firstSlot])
+    for (s = firstSlot + 1; s <= lastSlot; ++s) {
+	result = result "," render(count[s])
+    }
+    print result; delete count
+}
+function render(v)
+{
+    return (v == "" ? emptyCell : v)
+}
+'
+}
+tallyAndPrint()
+{
+    tally | printDistribution
+}
+determineCountRange()
+{
+    typeset -a rangeArgumentRender=()
+    [ ${#sparkMinArg[@]} -gt 0 ] \
+	|| rangeArgumentRender+=('printf("--min\n%d\n", (min == max && max > 0 ? min - 1 : min))')
+    [ ${#sparkMaxArg[@]} -gt 0 ] \
+	|| rangeArgumentRender+=('printf("--max\n%d\n", max)')
+
+    renderWith '
+function init()
+{
+    min = 2^PREC
+    max = 0
+}
+function printSection()
+{
+    for (slot in count) {
+	if (count[slot] < min) min = count[slot]
+	if (count[slot] > max) max = count[slot]
+    }
+    delete count
+}' \
+'
+END {
+'"${rangeArgumentRender[*]}"'
+}
 '
 }
 
@@ -301,7 +349,7 @@ printDistribution()
 	local data; IFS=$'\n' read -r data || break
 
 	local sparkEmptyOverride; [ -n "${SPARK_EMPTY+t}" ] || sparkEmptyOverride='SPARK_EMPTY="$DISTRIBUTIONOVERTHEDAY_EMPTY_CELL"'
-	local renderedDistribution; renderedDistribution="$(eval "$sparkEmptyOverride" 'spark --min 0 "${sparkArgs[@]}" "$data"')" && status=0 || exit $?
+	local renderedDistribution; renderedDistribution="$(eval "$sparkEmptyOverride" 'spark "${sparkMinArg[@]}" "${sparkMaxArg[@]}" "${sparkArgs[@]}" "$data"')" && status=0 || exit $?
 
 	local legendWidth=$DISTRIBUTIONOVERTHEDAY_LEGEND_LENGTH
 
@@ -339,4 +387,22 @@ printDistribution()
     return $status
 }
 
-tally | printDistribution
+if [ -z "$action" ] && [ ${#splitFieldNrs[@]} -gt 0 ] && [ ${#sparkMinArg[@]} -eq 0 -o ${#sparkMaxArg[@]} -eq 0 ]; then
+    # With --split-graph-field, multiple graphs are generated. Unfortunately, the
+    # mapping of value ranges to sparklines is restarted for each graph unless the
+    # range has been fixed via --min and --max. The user perceives the entire output
+    # as one entity; we must not let the re-scaling happen, as it's highly
+    # misleading.
+    # Sadly, in order to determine the range, we first need to process the entire
+    # data once to find the minimum and maximum values. We reuse most of our
+    # processing logic by invoking ourselves with --determine-count-range; that
+    # extracts the minimum and maximum values as --min and --max command-line
+    # parameters, and the withPreprocessedInput command picks those up and then
+    # reinvokes ourselves, supplying the original input data once more. The added
+    # min/max parameters break the recursion.
+    exec withPreprocessedInput --parallel-preprocess \
+	--preprocess-exec "${BASH_SOURCE[0]}" --determine-count-range "${inputDataClassificationArgs[@]}" "${sparkMinArg[@]}" "${sparkMaxArg[@]}" \; \
+	--exec "${BASH_SOURCE[0]}" '{@}' "${allargs[@]}" \;
+fi
+
+${action:-tallyAndPrint}

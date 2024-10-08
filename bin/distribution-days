@@ -5,7 +5,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| [DISTRIBUTIONDAYS_EMPTY_CELL='-'] [DISTRIBUTIONDAYS_BORDERS='< >'] [DISTRIBUTIONDAYS_DATE_FORMAT='%%Y-%%m-%%d'] [DISTRIBUTIONDAYS_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--base-date today|"YYYY MM DD"] [--graph-legend TEXT] [--graph-field N] [--no-start-date] [--no-end-date] [-F|--field-separator FS] [--year YYYY |--year-field Y] [--month-field M] [--day-field N] [--days-per-slot N|--slots-per-day N [--hour-field M]] [--count-field C [--default-count C|""]] [--split-days C|--split-graph-field N [--split-graph-field ...]] [--reversed] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| [DISTRIBUTIONDAYS_EMPTY_CELL='-'] [DISTRIBUTIONDAYS_BORDERS='< >'] [DISTRIBUTIONDAYS_DATE_FORMAT='%%Y-%%m-%%d'] [DISTRIBUTIONDAYS_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--base-date today|"YYYY MM DD"] [--graph-legend TEXT] [--graph-field N] [--no-start-date] [--no-end-date] [-F|--field-separator FS] [--year YYYY |--year-field Y] [--month-field M] [--day-field N] [--days-per-slot N|--slots-per-day N [--hour-field M]] [--count-field C [--default-count C|""]] [--split-days C|--split-graph-field N [--split-graph-field ...] [--rescale-each-graph]] [--reversed] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -67,6 +67,11 @@ HELPDESCRIPTION
 			Whenever the non-empty value of column N changes, start
 			a new graph. If you want to graph every month
 			separately, pass the year and month columns here.
+    --rescale-each-graph
+			Render the values of each split graph independently of
+			the other graphs; i.e. each series shows its values with
+			the most detail, but cannot be directly compared with
+			the others.
     --reversed		Graph newest to oldest dates from left to right, instead
 			of making time pass from left to right. This helps with
 			anchoring multiple historical graphs on the same (latest)
@@ -76,6 +81,8 @@ HELPTEXT
 }
 
 typeset -a sparkArgs=()
+typeset -a sparkMinArg=()
+typeset -a sparkMaxArg=()
 baseDate=
 graphLegendText=
 graphFieldNr=
@@ -94,11 +101,17 @@ slotNum=1
 splitDays=0
 typeset -a splitFieldNrs=()
 isReversed=
-typeset -a sparkArgs=()
+action=
+typeset -a inputDataClassificationArgs=()
+typeset -a allargs=("$@")
+isSingleCountRange=t
 while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--determine-count-range)
+			shift; action=determineCountRange;;
+
 	--base-date)	shift; baseDate="$1"; shift;;
 	--graph-legend)	shift; graphLegendText="$1"; shift;;
 	--graph-field)	shift; graphFieldNr="$1"; shift;;
@@ -107,19 +120,21 @@ do
 	--no-end-date)
 			shift; isEndDate=;;
 	--field-separator|-F)
-			shift; separator="${1:?}"; shift;;
+			inputDataClassificationArgs+=("$1" "$2"); shift; separator="${1:?}"; shift;;
 	--days-per-slot)
-			shift; dayNum="$1"; shift;;
+			inputDataClassificationArgs+=("$1" "$2"); shift; dayNum="$1"; shift;;
 	--slots-per-day)
-			shift; slotNum="$1"; shift;;
-	--day-field)    shift; dayFieldNr="${1:?}"; shift;;
-	--hour-field)   shift; hourFieldNr="${1:?}"; shift;;
-	--count-field)	shift; countFieldNr="$1"; shift;;
+			inputDataClassificationArgs+=("$1" "$2"); shift; slotNum="$1"; shift;;
+	--day-field)    inputDataClassificationArgs+=("$1" "$2"); shift; dayFieldNr="${1:?}"; shift;;
+	--hour-field)   inputDataClassificationArgs+=("$1" "$2"); shift; hourFieldNr="${1:?}"; shift;;
+	--count-field)	inputDataClassificationArgs+=("$1" "$2"); shift; countFieldNr="$1"; shift;;
 	--default-count)
-			shift; defaultCount="$1"; shift;;
-	--split-days)	shift; splitDays="$1"; shift;;
+			inputDataClassificationArgs+=("$1" "$2"); shift; defaultCount="$1"; shift;;
+	--split-days)	inputDataClassificationArgs+=("$1" "$2"); shift; splitDays="$1"; shift;;
 	--split-graph-field)
-			shift; splitFieldNrs+=("$1"); shift;;
+			inputDataClassificationArgs+=("$1" "$2"); shift; splitFieldNrs+=("$1"); shift;;
+	--rescale-each-graph)
+			shift; isSingleCountRange=;;
 	--reversed)	shift; isReversed=t;;
 	--as)		sparkArgs+=("$1"); shift
 			case "$1" in
@@ -149,6 +164,8 @@ do
 			esac
 			shift
 			;;
+	--min)		sparkMinArg=("$1" "${2:?}"); shift;shift;;
+	--max)		sparkMaxArg=("$1" "${2:?}"); shift;shift;;
 	--)		sparkArgs+=("$1"); shift; break;;
 	*)		sparkArgs+=("$1"); shift;;
     esac
@@ -194,7 +211,7 @@ typeset -a borders=()
 [ ${#borders[@]} -gt 0 ] && borders[-1]="${borders[-1]%$'\n'}"
 
 IFS=$'\n'
-tally()
+renderWith()
 {
     awk \
 	--field-separator "$separator" \
@@ -214,7 +231,7 @@ tally()
 	-v "splitFieldNrList=${splitFieldNrs[*]//\\/\\\\}" \
 	-v "isReversed=$isReversed" \
 	-v "emptyCell=${DISTRIBUTIONDAYS_EMPTY_CELL//\\/\\\\}" \
-'
+	"$1"'
 BEGIN {
     minSlot = 2^PREC; maxSlot = 0
     if (baseDate != "") {
@@ -234,10 +251,65 @@ BEGIN {
     splitFieldNrNum = split(splitFieldNrList, splitFieldNrs, "\n")
     splitSlots = (splitDays > 0 ? splitDays * slotNum : 2 ^ PREC)
 
+    delete count
+}
+{
+    for (i in splitFieldNrs) {
+	sf = splitFieldNrs[i]
+	if ($sf != "" && watchedFields[sf] != "" && watchedFields[sf] != $sf) {
+	    printSection()
+
+	    delete watchedFields
+	    for (sf in splitFieldNrs) {
+		if ($sf != "") watchedFields[sf] = $sf
+	    }
+	    break
+	} else if (watchedFields[sf] == "" && $sf != "") {
+	    watchedFields[sf] = $sf
+	}
+    }
+
+    if (graphFieldNr != "" && graphLegend == "") graphLegend = $graphFieldNr
+
+    thisYear = (year == "" ? $yearFieldNr : year)
+    epoch = mktime(thisYear " " $monthFieldNr " " $dayFieldNr " 00 00 00", 1)
+    if (epoch == -1) {
+	printf("Invalid date in line %d: %s\n", NR, $0) > "/dev/stderr"
+	next
+    }
+    slot = int((epoch / 86400 / dayNum) * slotNum + (slotNum > 1 ? int(int($hourFieldNr) * slotNum / 24) : 0))
+    ####D print "**** " slot " " slotToDate(slot, 0) ", " int(int($hourFieldNr) * slotNum / 24) > "/dev/stderr"
+    if (slot < minSlot) {
+	minSlot = slot
+    }
+    if (slot > maxSlot) {
+	maxSlot = slot
+    }
+
+    if (countFieldNr == "") {
+	count[slot] += 1
+    } else if ($countFieldNr ~ /^-?[[:digit:]]+$/) {
+	count[slot] += int($countFieldNr)
+    } else if (defaultCount != "none") {
+	if (defaultCount != "") {
+	    count[slot] += defaultCount
+	}
+    } else {
+	printf("%s count in line %d: %s\n", ($countFieldNr == "" ? "Missing" : "Invalid"), NR, $0) > "/dev/stderr"
+    }
+}
+END {
+    printSection()
+}
+'"$2"
+}
+tally()
+{
+    renderWith '
+function init()
+{
     emptyCellWithoutAnsiEscapes = gensub(/\x1b\[[0-9:;]*m/, "", "g", emptyCell)
     cellWidth = (emptyCellWithoutAnsiEscapes == "　" ? 2 : length(emptyCellWithoutAnsiEscapes)) # Rudimentary handling of fullwidth characters (just U+3000 IDEOGRAPHIC SPACE).
-
-    delete count
 }
 function slotToDate(slot, isEnd,      hourOffset)
 {
@@ -307,53 +379,37 @@ function render(v)
 {
     return (v == "" ? emptyCell : v)
 }
-{
-    for (i in splitFieldNrs) {
-	sf = splitFieldNrs[i]
-	if ($sf != "" && watchedFields[sf] != "" && watchedFields[sf] != $sf) {
-	    printSection()
-
-	    delete watchedFields
-	    for (sf in splitFieldNrs) {
-		if ($sf != "") watchedFields[sf] = $sf
-	    }
-	    break
-	} else if (watchedFields[sf] == "" && $sf != "") {
-	    watchedFields[sf] = $sf
-	}
-    }
-
-    if (graphFieldNr != "" && graphLegend == "") graphLegend = $graphFieldNr
-
-    thisYear = (year == "" ? $yearFieldNr : year)
-    epoch = mktime(thisYear " " $monthFieldNr " " $dayFieldNr " 00 00 00", 1)
-    if (epoch == -1) {
-	printf("Invalid date in line %d: %s\n", NR, $0) > "/dev/stderr"
-	next
-    }
-    slot = int((epoch / 86400 / dayNum) * slotNum + (slotNum > 1 ? int(int($hourFieldNr) * slotNum / 24) : 0))
-    ####D print "**** " slot " " slotToDate(slot, 0) ", " int(int($hourFieldNr) * slotNum / 24) > "/dev/stderr"
-    if (slot < minSlot) {
-	minSlot = slot
-    }
-    if (slot > maxSlot) {
-	maxSlot = slot
-    }
-
-    if (countFieldNr == "") {
-	count[slot] += 1
-    } else if ($countFieldNr ~ /^-?[[:digit:]]+$/) {
-	count[slot] += int($countFieldNr)
-    } else if (defaultCount != "none") {
-	if (defaultCount != "") {
-	    count[slot] += defaultCount
-	}
-    } else {
-	printf("%s count in line %d: %s\n", ($countFieldNr == "" ? "Missing" : "Invalid"), NR, $0) > "/dev/stderr"
-    }
+'
 }
+tallyAndPrint()
+{
+    tally | printDistribution
+}
+determineCountRange()
+{
+    typeset -a rangeArgumentRender=()
+    [ ${#sparkMinArg[@]} -gt 0 ] \
+	|| rangeArgumentRender+=('printf("--min\n%d\n", (min == max && max > 0 ? min - 1 : min))')
+    [ ${#sparkMaxArg[@]} -gt 0 ] \
+	|| rangeArgumentRender+=('printf("--max\n%d\n", max)')
+
+    renderWith '
+function init()
+{
+    min = 2^PREC
+    max = 0
+}
+function printSection()
+{
+    for (slot in count) {
+	if (count[slot] < min) min = count[slot]
+	if (count[slot] > max) max = count[slot]
+    }
+    delete count
+}' \
+'
 END {
-    printSection()
+'"${rangeArgumentRender[*]}"'
 }
 '
 }
@@ -375,7 +431,7 @@ printDistribution()
 	local endDate; IFS=$'\n' read -r endDate || break
 
 	local sparkEmptyOverride; [ -n "${SPARK_EMPTY+t}" ] || sparkEmptyOverride='SPARK_EMPTY="$DISTRIBUTIONDAYS_EMPTY_CELL"'
-	local renderedDistribution; renderedDistribution="$(eval "$sparkEmptyOverride" 'spark --min 0 "${sparkArgs[@]}" "$data"')" && status=0 || exit $?
+	local renderedDistribution; renderedDistribution="$(eval "$sparkEmptyOverride" 'spark "${sparkMinArg[@]}" "${sparkMaxArg[@]}" "${sparkArgs[@]}" "$data"')" && status=0 || exit $?
 
 	[ "$isStartDate" ] || startDate=''
 	[ "$isEndDate" ] || endDate=''
@@ -389,4 +445,22 @@ printDistribution()
     return $status
 }
 
-tally | printDistribution
+if [ -z "$action" ] && [ "$isSingleCountRange" ] && [ $splitDays -gt 0 -o ${#splitFieldNrs[@]} -gt 0 ] && [ ${#sparkMinArg[@]} -eq 0 -o ${#sparkMaxArg[@]} -eq 0 ]; then
+    # With --split-days or --split-graph-field, multiple graphs are generated.
+    # Unfortunately, the mapping of value ranges to sparklines is restarted for each
+    # graph unless the range has been fixed via --min and --max. The user perceives
+    # the entire output as one entity; we must not let the re-scaling happen, as
+    # it's highly misleading.
+    # Sadly, in order to determine the range, we first need to process the entire
+    # data once to find the minimum and maximum values. We reuse most of our
+    # processing logic by invoking ourselves with --determine-count-range; that
+    # extracts the minimum and maximum values as --min and --max command-line
+    # parameters, and the withPreprocessedInput command picks those up and then
+    # reinvokes ourselves, supplying the original input data once more. The added
+    # min/max parameters break the recursion.
+    exec withPreprocessedInput --parallel-preprocess \
+	--preprocess-exec "${BASH_SOURCE[0]}" --determine-count-range "${inputDataClassificationArgs[@]}" "${sparkMinArg[@]}" "${sparkMaxArg[@]}" \; \
+	--exec "${BASH_SOURCE[0]}" '{@}' "${allargs[@]}" \;
+fi
+
+${action:-tallyAndPrint}
