@@ -12,7 +12,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...' | %q %s\\n" "$(basename "$1")" '[--no-footer|--final-footer-only|footer-only-on-change|--footer-every N] [--graph-legend TEXT] [--footer-legend TEXT] [--force-legends] [-F|--field-separator FS] [--slots-per-day N] [--slots-per-hour N] [--count-field C [--default-count C|""]] [-S|--no-splitting|--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar] [--over day|month|year|year-weekly|--weekly] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...' | %q %s\\n" "$(basename "$1")" '[--no-footer|--final-footer-only|footer-only-on-change|--footer-every N] [--graph-legend TEXT] [--footer-legend TEXT] [--force-legends] [--bucket-legend] [-F|--field-separator FS] [--slots-per-day N] [--slots-per-hour N] [--count-field C [--default-count C|""]] [-S|--no-splitting|--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar] [--over day|month|year|year-weekly|--weekly] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {

@@ -4,7 +4,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '11:01\\\\n11:30\\\\n12:00\\\\n...'| [DISTRIBUTIONOVERTHEDAY_EMPTY_CELL='-'] [DISTRIBUTIONOVERTHEDAY_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEDAY_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer|--final-footer-only|--footer-only-on-change|--footer-every N] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [-F|--field-separator FS] [--hour-field N] [--minute-field M] [--first-hour HH] [--last-hour HH] [--slots-per-hour N] [--count-field C [--default-count C|""]] [--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '11:01\\\\n11:30\\\\n12:00\\\\n...'| [DISTRIBUTIONOVERTHEDAY_EMPTY_CELL='-'] [DISTRIBUTIONOVERTHEDAY_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEDAY_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer|--final-footer-only|--footer-only-on-change|--footer-every N] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [--bucket-legend] [-F|--field-separator FS] [--hour-field N] [--minute-field M] [--first-hour HH] [--last-hour HH] [--slots-per-hour N] [--count-field C [--default-count C|""]] [--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -46,6 +46,8 @@ HELPDESCRIPTION
     --footer-field N	Add text captured from the first non-empty column N of
 			the input data in front of the footer. If --no-footer,
 			this will be put after the graph legend instead.
+    --bucket-legend	Append a legend showing the value ranges for each
+			sparkline character.
     --field-separator|-F FS
 			Use FS for splitting the data into columns (instead of
 			the default whitespace + [:_/-]).
@@ -91,6 +93,7 @@ finalFooter=
 typeset -a footerCapture=()
 isFooterOnlyOnChange=
 footerEvery=
+hasBucketLegend=
 slotNum=4
 typeset -a splitFieldNrs=()
 action=
@@ -114,6 +117,8 @@ do
 	--footer-legend)
 			shift; footerLegendText="$1"; shift;;
 	--footer-field)	shift; footerFieldNr="$1"; shift;;
+	--bucket-legend)
+			shift; hasBucketLegend=t; sparkArgs+=(--with-legend);;
 	--field-separator|-F)
 			inputDataClassificationArgs+=("$1" "$2"); shift; separator="${1:?}"; shift;;
 	--hour-field)   inputDataClassificationArgs+=("$1" "$2"); shift; hourFieldNr="${1:?}"; shift;;
@@ -349,7 +354,12 @@ printDistribution()
 	local data; IFS=$'\n' read -r data || break
 
 	local sparkEmptyOverride; [ -n "${SPARK_EMPTY+t}" ] || sparkEmptyOverride='SPARK_EMPTY="$DISTRIBUTIONOVERTHEDAY_EMPTY_CELL"'
-	local renderedDistribution; renderedDistribution="$(eval "$sparkEmptyOverride" 'spark "${sparkMinArg[@]}" "${sparkMaxArg[@]}" "${sparkArgs[@]}" "$data"')" && status=0 || exit $?
+	readarray -t renderedLines < <(SPARK_LEGEND_SEPARATOR=$'\n' eval "$sparkEmptyOverride" 'spark "${sparkMinArg[@]}" "${sparkMaxArg[@]}" "${sparkArgs[@]}" "$data"'; printf '\n%d\n' "$?")	# Exit status from the process substitution is lost; return the actual exit status via an appended additional line.
+	[ ${renderedLines[-1]} -eq 0 ] && status=0 || exit ${renderedLines[-1]}
+	unset 'renderedLines[-1]'
+	[ -z "${renderedLines[-1]}" ] && unset 'renderedLines[-1]'
+	local renderedDistribution="${renderedLines[0]}"
+	local renderedLegend="${renderedLines[1]}"
 
 	local legendWidth=$DISTRIBUTIONOVERTHEDAY_LEGEND_LENGTH
 
@@ -372,14 +382,14 @@ printDistribution()
 		printf %s "$finalFooter"
 	    fi
 
-	    printf "%s%-${legendWidth}.${legendWidth}s%s%s%s%s\\n" "$L" "$graphLegend" "${L:+$R}" "${B}${borders[0]}${B:+$R}" "${G}${renderedDistribution}${G:+$R}" "${B}${borders[1]}${B:+$R}"
+	    printf "%s%-${legendWidth}.${legendWidth}s%s%s%s%s%s\\n" "$L" "$graphLegend" "${L:+$R}" "${B}${borders[0]}${B:+$R}" "${G}${renderedDistribution}${G:+$R}" "${B}${borders[1]}${B:+$R}" "${renderedLegend:+ }${renderedLegend}"
 	    printf "${footerCapture[@]}" \
 		   "%s%-${legendWidth}.${legendWidth}s%s%s%s%s\\n" "$F" "$footerLegend" "${F:+$R}" "${B}${borders[2]}${B:+$R}" "${U}${footer}${U:+$R}" "${B}${borders[3]}${B:+$R}"
 
 	    let footerCount+=1
 	else
 	    local completeLegend="$graphLegend"; [ -n "$graphLegend" -a -n "$footerLegend" ] && completeLegend+=' '; completeLegend+="$footerLegend"
-	    printf "%s%${legendWidth:+-}${legendWidth}${legendWidth:+.}${legendWidth}s%s%s\\n" "$L" "$completeLegend" "${L:+$R}" "${G}${renderedDistribution}${G:+$R}"
+	    printf "%s%${legendWidth:+-}${legendWidth}${legendWidth:+.}${legendWidth}s%s%s%s\\n" "$L" "$completeLegend" "${L:+$R}" "${G}${renderedDistribution}${G:+$R}" "${renderedLegend:+ }${renderedLegend}"
 	fi
     done
 

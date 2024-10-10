@@ -5,7 +5,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| [DISTRIBUTIONDAYS_EMPTY_CELL='-'] [DISTRIBUTIONDAYS_BORDERS='< >'] [DISTRIBUTIONDAYS_DATE_FORMAT='%%Y-%%m-%%d'] [DISTRIBUTIONDAYS_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--base-date today|"YYYY MM DD"] [--graph-legend TEXT] [--graph-field N] [--no-start-date] [--no-end-date] [-F|--field-separator FS] [--year YYYY |--year-field Y] [--month-field M] [--day-field N] [--days-per-slot N|--slots-per-day N [--hour-field M]] [--count-field C [--default-count C|""]] [--split-days C|--split-graph-field N [--split-graph-field ...] [--rescale-each-graph]] [--reversed] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...'| [DISTRIBUTIONDAYS_EMPTY_CELL='-'] [DISTRIBUTIONDAYS_BORDERS='< >'] [DISTRIBUTIONDAYS_DATE_FORMAT='%%Y-%%m-%%d'] [DISTRIBUTIONDAYS_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--base-date today|"YYYY MM DD"] [--graph-legend TEXT] [--graph-field N] [--no-start-date] [--no-end-date] [--bucket-legend] [-F|--field-separator FS] [--year YYYY |--year-field Y] [--month-field M] [--day-field N] [--days-per-slot N|--slots-per-day N [--hour-field M]] [--count-field C [--default-count C|""]] [--split-days C|--split-graph-field N [--split-graph-field ...] [--rescale-each-graph]] [--reversed] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -40,6 +40,8 @@ HELPDESCRIPTION
 			the beginning of the graph.
     --no-end-date	Do not add the (latest, earliest with --reverse) date at
 			the end of the graph.
+    --bucket-legend	Append a legend showing the value ranges for each
+			sparkline character.
     --field-separator|-F FS
 			Use FS for splitting the data into columns (instead of
 			the default whitespace + [:_/-]).
@@ -97,6 +99,7 @@ hourFieldNr=4
 countFieldNr=
 defaultCount=none
 dayNum=1
+hasBucketLegend=
 slotNum=1
 splitDays=0
 typeset -a splitFieldNrs=()
@@ -119,6 +122,8 @@ do
 			shift; isStartDate=;;
 	--no-end-date)
 			shift; isEndDate=;;
+	--bucket-legend)
+			shift; hasBucketLegend=t; sparkArgs+=(--with-legend);;
 	--field-separator|-F)
 			inputDataClassificationArgs+=("$1" "$2"); shift; separator="${1:?}"; shift;;
 	--days-per-slot)
@@ -431,7 +436,12 @@ printDistribution()
 	local endDate; IFS=$'\n' read -r endDate || break
 
 	local sparkEmptyOverride; [ -n "${SPARK_EMPTY+t}" ] || sparkEmptyOverride='SPARK_EMPTY="$DISTRIBUTIONDAYS_EMPTY_CELL"'
-	local renderedDistribution; renderedDistribution="$(eval "$sparkEmptyOverride" 'spark "${sparkMinArg[@]}" "${sparkMaxArg[@]}" "${sparkArgs[@]}" "$data"')" && status=0 || exit $?
+	readarray -t renderedLines < <(SPARK_LEGEND_SEPARATOR=$'\n' eval "$sparkEmptyOverride" 'spark "${sparkMinArg[@]}" "${sparkMaxArg[@]}" "${sparkArgs[@]}" "$data"'; printf '\n%d\n' "$?")	# Exit status from the process substitution is lost; return the actual exit status via an appended additional line.
+	[ ${renderedLines[-1]} -eq 0 ] && status=0 || exit ${renderedLines[-1]}
+	unset 'renderedLines[-1]'
+	[ -z "${renderedLines[-1]}" ] && unset 'renderedLines[-1]'
+	local renderedDistribution="${renderedLines[0]}"
+	local renderedLegend="${renderedLines[1]}"
 
 	[ "$isStartDate" ] || startDate=''
 	[ "$isEndDate" ] || endDate=''
@@ -439,7 +449,7 @@ printDistribution()
 	local legendStartDateSeparator=''; [ -n "$graphLegend" -a -n "$startDate" ] && legendStartDateSeparator=' '
 
 	local B="$DISTRIBUTIONDAYS_COLOR_BORDER" L="$DISTRIBUTIONDAYS_COLOR_LEGEND" U="$DISTRIBUTIONDAYS_COLOR_UNITS" G="$DISTRIBUTIONDAYS_COLOR_GRAPH" R="$DISTRIBUTIONDAYS_COLOR_RESET"
-	printf "%s%${legendWidth:+-}${legendWidth}${legendWidth:+.}${legendWidth}s%s%s%s%s%s%s%s\\n" "${graphLegend:+$L}" "${graphLegend}" "${graphLegend:+${L:+$R}}" "$legendStartDateSeparator" "${startDate:+$U}${startDate}${startDate:+${U:+$R}}" "${B}${borders[0]}${B:+$R}" "${G}${renderedDistribution}${G:+$R}" "${B}${borders[1]}${B:+$R}" "${endDate:+$U}${endDate}${endDate:+${U:+$R}}"
+	printf "%s%${legendWidth:+-}${legendWidth}${legendWidth:+.}${legendWidth}s%s%s%s%s%s%s%s%s\\n" "${graphLegend:+$L}" "${graphLegend}" "${graphLegend:+${L:+$R}}" "$legendStartDateSeparator" "${startDate:+$U}${startDate}${startDate:+${U:+$R}}" "${B}${borders[0]}${B:+$R}" "${G}${renderedDistribution}${G:+$R}" "${B}${borders[1]}${B:+$R}" "${endDate:+$U}${endDate}${endDate:+${U:+$R}}" "${renderedLegend:+ }${renderedLegend}"
     done
 
     return $status
