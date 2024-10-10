@@ -240,7 +240,6 @@ BEGIN {
 
     if (isWeekly) {
 	slot = int(strftime(WEEK_OF_YEAR_FORMAT, epoch))
-	print "**** [" slot "]" > "/dev/stderr"
     } else {
 	dayOfYear = int(strftime("%j", epoch))
 	firstDayEpoch = mktime(thisYear " 01 01 12 00 00")
