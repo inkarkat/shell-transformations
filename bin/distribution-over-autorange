@@ -12,7 +12,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...' | %q %s\\n" "$(basename "$1")" '[--no-footer|--final-footer-only|footer-only-on-change|--footer-every N] [--graph-legend TEXT] [--footer-legend TEXT] [--force-legends] [--bucket-legend] [-F|--field-separator FS] [--slots-per-day N] [--slots-per-hour N] [--count-field C [--default-count C|""]] [-S|--no-splitting|--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar|...] [--over day|month|year|year-weekly|--weekly] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '2021-12-31 11:01\\\\n2022-01-11 12:00\\\\n...' | %q %s\\n" "$(basename "$1")" '[--color=(always|auto|never)|--no-color] [--no-footer|--final-footer-only|footer-only-on-change|--footer-every N] [--graph-legend TEXT] [--footer-legend TEXT] [--force-legends] [--bucket-legend] [-F|--field-separator FS] [--slots-per-day N] [--slots-per-hour N] [--count-field C [--default-count C|""]] [-S|--no-splitting|--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar|...] [--over day|month|year|year-weekly|--weekly] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -75,25 +75,7 @@ EXIT STATUS:
 HELPTEXT
 }
 
-typeset -a dayDistributionDefaultRenderArgs=()
-typeset -a monthDistributionDefaultRenderArgs=()
-typeset -a yearDistributionDefaultRenderArgs=()
-if [ -t 1 ]; then
-    dayDistributionDefaultRenderArgs=(--as green-calendar)
-    monthDistributionDefaultRenderArgs=(--as green-calendar)
-    yearDistributionDefaultRenderArgs=(--as green-calendar)
-    : ${COLUMNS:=80}
-    if [ $COLUMNS -ge 150 ]; then
-	dayDistributionDefaultRenderArgs=(--as green-large-calendar)
-	monthDistributionDefaultRenderArgs=(--as green-large-calendar)
-	yearDistributionDefaultRenderArgs=(--as green-large-calendar)
-    elif [ $COLUMNS -ge 120 ]; then
-	monthDistributionDefaultRenderArgs=(--as green-large-calendar)
-	yearDistributionDefaultRenderArgs=(--as green-large-calendar)
-    elif [ $COLUMNS -ge 70 ]; then
-	monthDistributionDefaultRenderArgs=(--as green-large-calendar)
-    fi
-fi
+isColor=; [ -t 1 ] && isColor=t
 isSplitting=t
 isForceLegends=
 forceRange=
@@ -114,6 +96,22 @@ while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--no-color|--color=never)
+			isColor=; shift;;
+	--color=always)	isColor=t; shift;;
+	--color=auto)	shift;;
+	--color)	case "$2" in
+			    always) isColor=t;;
+			    never)  isColor=;;
+			    auto)   ;;
+			    *)	    echo >&2 "ERROR: Invalid --color arg: $2"
+				    echo >&2
+				    printUsage "$0" >&2
+				    exit 2
+				    ;;
+			esac
+			shift; shift
+			;;
 
 	--weekly)	distributionOverTheYearArgs+=("$1"); shift; isWeekly=t;;
 	--slots-per-day)
@@ -160,6 +158,26 @@ hasHours()
     { IFS=$'\n' read -r firstHours; IFS=$'\n' read -r lastHours; } < <(printf '%s\n' "${dates[0]}" "${dates[-1]}" | field "${distributionFieldSeparatorArgs[@]}" 4 '' 5)
     [ -n "$firstHours" -o -n "$lastHours" ]
 }
+
+typeset -a dayDistributionDefaultRenderArgs=()
+typeset -a monthDistributionDefaultRenderArgs=()
+typeset -a yearDistributionDefaultRenderArgs=()
+if [ "$isColor" ]; then
+    dayDistributionDefaultRenderArgs=(--as green-calendar)
+    monthDistributionDefaultRenderArgs=(--as green-calendar)
+    yearDistributionDefaultRenderArgs=(--as green-calendar)
+    : ${COLUMNS:=80}
+    if [ $COLUMNS -ge 150 ]; then
+	dayDistributionDefaultRenderArgs=(--as green-large-calendar)
+	monthDistributionDefaultRenderArgs=(--as green-large-calendar)
+	yearDistributionDefaultRenderArgs=(--as green-large-calendar)
+    elif [ $COLUMNS -ge 120 ]; then
+	monthDistributionDefaultRenderArgs=(--as green-large-calendar)
+	yearDistributionDefaultRenderArgs=(--as green-large-calendar)
+    elif [ $COLUMNS -ge 70 ]; then
+	monthDistributionDefaultRenderArgs=(--as green-large-calendar)
+    fi
+fi
 
 readarray -t dates
 [ ${#dates[@]} -gt 0 ] || exit 99
