@@ -4,7 +4,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '11:01\\\\n11:30\\\\n12:00\\\\n...'| [DISTRIBUTIONOVERTHEDAY_EMPTY_CELL='-'] [DISTRIBUTIONOVERTHEDAY_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEDAY_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer|--final-footer-only|--footer-only-on-change|--footer-every N] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [--bucket-legend] [-F|--field-separator FS] [--hour-field N] [--minute-field M] [--first-hour HH] [--last-hour HH] [--slots-per-hour N] [--count-field C [--default-count C|""]] [--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '11:01\\\\n11:30\\\\n12:00\\\\n...'| [DISTRIBUTIONOVERTHEDAY_EMPTY_CELL='-'] [DISTRIBUTIONOVERTHEDAY_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEDAY_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer|--final-footer-only|--footer-only-on-change|--footer-every N] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [--bucket-legend] [-F|--field-separator FS] [--hour-field N] [--minute-field M] [--first-hour HH] [--last-hour HH] [--slots-per-hour N] [--count-field C [--default-count C|""]] [--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar|...] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {
