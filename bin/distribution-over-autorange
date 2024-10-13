@@ -75,25 +75,6 @@ EXIT STATUS:
 HELPTEXT
 }
 
-typeset -a dayDistributionDefaultRenderArgs=()
-typeset -a monthDistributionDefaultRenderArgs=()
-typeset -a yearDistributionDefaultRenderArgs=()
-if [ -t 1 ]; then
-    dayDistributionDefaultRenderArgs=(--as green-calendar)
-    monthDistributionDefaultRenderArgs=(--as green-calendar)
-    yearDistributionDefaultRenderArgs=(--as green-calendar)
-    : ${COLUMNS:=80}
-    if [ $COLUMNS -ge 150 ]; then
-	dayDistributionDefaultRenderArgs=(--as green-large-calendar)
-	monthDistributionDefaultRenderArgs=(--as green-large-calendar)
-	yearDistributionDefaultRenderArgs=(--as green-large-calendar)
-    elif [ $COLUMNS -ge 120 ]; then
-	monthDistributionDefaultRenderArgs=(--as green-large-calendar)
-	yearDistributionDefaultRenderArgs=(--as green-large-calendar)
-    elif [ $COLUMNS -ge 70 ]; then
-	monthDistributionDefaultRenderArgs=(--as green-large-calendar)
-    fi
-fi
 isSplitting=t
 isForceLegends=
 forceRange=
@@ -160,6 +141,26 @@ hasHours()
     { IFS=$'\n' read -r firstHours; IFS=$'\n' read -r lastHours; } < <(printf '%s\n' "${dates[0]}" "${dates[-1]}" | field "${distributionFieldSeparatorArgs[@]}" 4 '' 5)
     [ -n "$firstHours" -o -n "$lastHours" ]
 }
+
+typeset -a dayDistributionDefaultRenderArgs=()
+typeset -a monthDistributionDefaultRenderArgs=()
+typeset -a yearDistributionDefaultRenderArgs=()
+if [ -t 1 ]; then
+    dayDistributionDefaultRenderArgs=(--as green-calendar)
+    monthDistributionDefaultRenderArgs=(--as green-calendar)
+    yearDistributionDefaultRenderArgs=(--as green-calendar)
+    : ${COLUMNS:=80}
+    if [ $COLUMNS -ge 150 ]; then
+	dayDistributionDefaultRenderArgs=(--as green-large-calendar)
+	monthDistributionDefaultRenderArgs=(--as green-large-calendar)
+	yearDistributionDefaultRenderArgs=(--as green-large-calendar)
+    elif [ $COLUMNS -ge 120 ]; then
+	monthDistributionDefaultRenderArgs=(--as green-large-calendar)
+	yearDistributionDefaultRenderArgs=(--as green-large-calendar)
+    elif [ $COLUMNS -ge 70 ]; then
+	monthDistributionDefaultRenderArgs=(--as green-large-calendar)
+    fi
+fi
 
 readarray -t dates
 [ ${#dates[@]} -gt 0 ] || exit 99
