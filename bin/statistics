@@ -1,10 +1,12 @@
 #!/bin/bash
 
+: ${STATISTICS_SEP:= }
+
 printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: [STATISTICS_PRECISION=N] %q %s\n' "$(basename "$1")" '[-l|--legend] [-u|--unit UNIT] FILE [...] [-?|-h|--help]'
+    printf 'Usage: [STATISTICS_PRECISION=N] [STATISTICS_SEP=" "] %q %s\n' "$(basename "$1")" '[-l|--legend] [-u|--unit UNIT] FILE [...] [-?|-h|--help]'
     printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[...]'
     echo
     printf 'Usage: %q %s\n' "$(basename "$1")" '-L|--legend-only [-u|--unit UNIT]'
@@ -49,7 +51,7 @@ HELPTEXT
 }
 
 F="%${STATISTICS_PRECISION:+.}${STATISTICS_PRECISION:-g}${STATISTICS_PRECISION:+f}"
-format="⭳:${F}%s ¼:${F}%s õ:${F}%s ø:${F}%s ¾:${F}%s ⭱:${F}%s σ:${F}%s Σ:${F}%s N:%d ≠:%d\\n"
+format="⭳:${F}%s${STATISTICS_SEP}¼:${F}%s${STATISTICS_SEP}õ:${F}%s${STATISTICS_SEP}ø:${F}%s${STATISTICS_SEP}¾:${F}%s${STATISTICS_SEP}⭱:${F}%s${STATISTICS_SEP}σ:${F}%s${STATISTICS_SEP}Σ:${F}%s${STATISTICS_SEP}N:%d${STATISTICS_SEP}≠:%d\\n"
 legend='⭳:minimum value%s\n¼:first quartile value%s\nõ:median%s\nø:mean of the values%s\n¾:third quartile value%s\n⭱:maximum value%s\nσ:standard deviation%s\nΣ:sum of all values%s\nN:number of values%s\n≠:number of unique/distinct values%s\n'
 isAddLegend=
 isLegendOnly=
@@ -59,11 +61,11 @@ do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
 	--raw|-r)	shift
-			format="${F}%s ${F}%s ${F}%s ${F}%s ${F}%s ${F}%s ${F}%s ${F}%s %d %d\\n"
+			format="${F}%s${STATISTICS_SEP}${F}%s${STATISTICS_SEP}${F}%s${STATISTICS_SEP}${F}%s${STATISTICS_SEP}${F}%s${STATISTICS_SEP}${F}%s${STATISTICS_SEP}${F}%s${STATISTICS_SEP}${F}%s${STATISTICS_SEP}%d${STATISTICS_SEP}%d\\n"
 			legend="${legend//?:/}"
 			;;
 	--ascii)	shift
-			format="min:${F}%s q1:${F}%s med:${F}%s avg:${F}%s q3:${F}%s max:${F}%s std:${F}%s sum:${F}%s N:%d U:%d\\n"
+			format="min:${F}%s${STATISTICS_SEP}q1:${F}%s${STATISTICS_SEP}med:${F}%s${STATISTICS_SEP}avg:${F}%s${STATISTICS_SEP}q3:${F}%s${STATISTICS_SEP}max:${F}%s${STATISTICS_SEP}std:${F}%s${STATISTICS_SEP}sum:${F}%s${STATISTICS_SEP}N:%d${STATISTICS_SEP}U:%d\\n"
 			legend='min: minimum value%s\nq1 : first quartile value%s\nmed: median%s\navg: mean of the values%s\nq3 : third quartile value%s\nmax: maximum value%s\nstd: standard deviation%s\nsum: sum of all values%s\nN  : number of values%s\nU  : number of unique/distinct values%s\n'
 			;;
 	--legend|-l)	shift; isAddLegend=t;;
