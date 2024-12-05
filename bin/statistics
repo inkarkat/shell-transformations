@@ -9,7 +9,7 @@ printShortUsage()
     printf 'Usage: [STATISTICS_PRECISION=N] [STATISTICS_SEP=" "] %q %s\n' "$(basename "$1")" '[-l|--legend] [-u|--unit UNIT] FILE [...] [-?|-h|--help]'
     printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[...]'
     echo
-    printf 'Usage: %q %s\n' "$(basename "$1")" '-L|--legend-only [-u|--unit UNIT]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '-L|--legend-only [-u|--unit|--unit-once UNIT]'
 }
 printUsage()
 {
@@ -39,6 +39,8 @@ HELPDESCRIPTION
 		    Just print a legend (without analyzing input).
     --unit|-u UNIT  Append UNIT behind every value (except the counts), or in
 		    the legend if printed.
+    --unit-once UNIT
+		    Append UNIT only behind the last value (before the counts).
 
 EXIT STATUS:
     0	Complete success.
@@ -56,6 +58,7 @@ legend='⭳:minimum value%s\n¼:first quartile value%s\nõ:median%s\nø:mean of 
 isAddLegend=
 isLegendOnly=
 unit=
+isUnitsForAll=t
 while [ $# -ne 0 ]
 do
     case "$1" in
@@ -71,6 +74,7 @@ do
 	--legend|-l)	shift; isAddLegend=t;;
 	--legend-only|-L)
 			shift; isLegendOnly=t;;
+	--unit-once)	isUnitsForAll=;&
 	--unit|-u)	shift; unit="$1"; shift;;
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
@@ -93,7 +97,17 @@ analyze()
 	unit=
     fi
 
-    printf "$format" "$min" "$unit" "$q1" "$unit" "$median" "$unit" "$mean" "$unit" "$q3" "$unit" "$max" "$unit" "$sstdev" "$unit" "$sum" "$unit" "$num" "$unique"
+    printf "$format" \
+	"$min" "${isUnitsForAll:+$unit}" \
+	"$q1" "${isUnitsForAll:+$unit}" \
+	"$median" "${isUnitsForAll:+$unit}" \
+	"$mean" "${isUnitsForAll:+$unit}" \
+	"$q3" "${isUnitsForAll:+$unit}" \
+	"$max" "${isUnitsForAll:+$unit}" \
+	"$sstdev" "${isUnitsForAll:+$unit}" \
+	"$sum" "$unit" \
+	"$num" \
+	"$unique"
 
     if [ "$isAddLegend" ]; then
 	printf "$legend" "$legendUnit" "$legendUnit" "$legendUnit" "$legendUnit" "$legendUnit" "$legendUnit" "$legendUnit" "$legendUnit"
