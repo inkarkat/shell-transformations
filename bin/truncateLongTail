@@ -90,7 +90,7 @@ awk \
     "${fsArgs[@]}" \
     -v "hasHeader=$hasHeader" \
     -v "valueFieldSpecifier=${1:?}" \
-    -v "includePattern=${includePattern//\/\\}" \
+    -v "includePattern=${includePattern//\\/\\\\}" \
     -v "includeSeparator=${TRUNCATELONGTAIL_INCLUDE_SEPARATOR//\\/\\\\}" \
 '
 function getFieldNr()
