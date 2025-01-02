@@ -7,7 +7,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '--avg|--count|--join SEP|--sum-or-join SEP|--max|--min|--sum|--unique-counts|--total-and-unique-counts [--has-header] -g|--group-by [-]N|HEADER-NAME [--result-first] [--sort-by [+-]group|[+-]result] [-F|--field-separator FIELD-SEPARATOR] [-s|--output-separator OUTPUT-SEPARATOR] [-]N|HEADER-NAME ...'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '--avg|--count|--join SEP|--sum-or-join SEP|--max|--min|--sum|--unique-counts|--total-and-unique-counts [--has-header] -g|--group-by [-]N|HEADER-NAME [--result-first] [--sort-by [+-]group|[+-]result] [-F|--field-separator FIELD-SEPARATOR] [-s|--output-separator OUTPUT-SEPARATOR] [[-]N|HEADER-NAME ...]'
     echo
     printf 'Usage: %q %s\n' "$(basename "$1")" "... -i|--input FILE [-i ...]|--input-files FILE [...] ${AGGREGATEFIELD_INPUTFILES_END} [-?|-h|--help]"
 }
@@ -23,8 +23,8 @@ printLongUsage()
     # This is the long "man page" when launched with the help argument.
     # It is printed to stdout to allow paging with 'more'.
     cat <<HELPDESCRIPTION
-Aggregate numbers in field(s) N (-N counted from behind) / field(s) with
-HEADER-NAME (implies --has-header), and print the result(s).
+Aggregate numbers in all fields / field(s) N (-N counted from behind) / field(s)
+with HEADER-NAME (implies --has-header), and print the result(s).
 HELPDESCRIPTION
     echo
     printShortUsage "$1"
@@ -120,10 +120,7 @@ do
 	*)		break;;
     esac
 done
-if [ $# -eq 0 ]; then
-    printUsage "$0"
-    exit 2
-elif [ -z "$aggregator" ]; then
+if [ -z "$aggregator" ]; then
     echo 'ERROR: No aggregator passed: One of --avg|--count|--join SEP|--sum-or-join SEP|--max|--min|--sum.'
     echo
     printUsage "$0"
@@ -233,8 +230,14 @@ function getFieldNr(fieldOffset)
 {
     return (fieldOffset ~ /^-/ ? NF + fieldOffset + 1 : fieldOffset)
 }
-function aggregateRecord(      keyFieldNr, valueFieldOffset, valueFieldNr)
+function aggregateRecord(      i, keyFieldNr, valueFieldOffset, valueFieldNr)
 {
+    if (aggregateFieldList == "") {
+	for (i = length(aggregateFields) + 1; i <= NF; i++) {
+	    aggregateFields[i] = ""
+	}
+    }
+
     for (valueFieldOffset in aggregateFields) {
 	valueFieldNr = getFieldNr(valueFieldOffset)
 	if (valueFieldNr > NF) return
@@ -255,6 +258,9 @@ function aggregateRecord(      keyFieldNr, valueFieldOffset, valueFieldNr)
 	    }
 	}
     }
+}
+BEGIN {
+    split("", aggregateFields)
 }
 NR == 1 {
     # Use passed OUTPUT-SEPARATOR, fall back to FS unless it is a regular expression.
