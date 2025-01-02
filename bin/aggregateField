@@ -7,7 +7,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '--avg|--count|--join SEP|--max|--min|--sum|--unique-counts|--total-and-unique-counts [--has-header] -g|--group-by [-]N|HEADER-NAME [--result-first] [--sort-by [+-]group|[+-]result] [-F|--field-separator FIELD-SEPARATOR] [-s|--output-separator OUTPUT-SEPARATOR] [-]N|HEADER-NAME ...'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '--avg|--count|--join SEP|--sum-or-join SEP|--max|--min|--sum|--unique-counts|--total-and-unique-counts [--has-header] -g|--group-by [-]N|HEADER-NAME [--result-first] [--sort-by [+-]group|[+-]result] [-F|--field-separator FIELD-SEPARATOR] [-s|--output-separator OUTPUT-SEPARATOR] [-]N|HEADER-NAME ...'
     echo
     printf 'Usage: %q %s\n' "$(basename "$1")" "... -i|--input FILE [-i ...]|--input-files FILE [...] ${AGGREGATEFIELD_INPUTFILES_END} [-?|-h|--help]"
 }
@@ -33,6 +33,8 @@ HELPDESCRIPTION
     --avg		Calculate the average.
     --count		Count the number of non-empty fields.
     --join SEP		Concatenate all field values with SEP in between.
+    --sum-or-join SEP	Sum numbers, join non-numeric fields with SEP in
+			between.
     --max		Find the maximum.
     --min		Find the minimum.
     --sum		Calculate the sum.
@@ -77,7 +79,8 @@ do
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
 	--avg|--count|--max|--min|--sum|--unique-counts|--total-and-unique-counts)
 			aggregator="${1#--}"; shift;;
-	--join)		aggregator="${1#--}"; shift; joinSeparator="${1?}"; shift;;
+	--join|--sum-or-join)
+			aggregator="${1#--}"; shift; joinSeparator="${1?}"; shift;;
 	--has-header)	shift; hasHeader=t;;
 	--group-by|-g)	shift; groupBy="${1:?}"; shift;;
 	--result-first)	shift; isResultFirst=t;;
@@ -121,7 +124,7 @@ if [ $# -eq 0 ]; then
     printUsage "$0"
     exit 2
 elif [ -z "$aggregator" ]; then
-    echo 'ERROR: No aggregator passed: One of --avg|--count|--join SEP|--max|--min|--sum.'
+    echo 'ERROR: No aggregator passed: One of --avg|--count|--join SEP|--sum-or-join SEP|--max|--min|--sum.'
     echo
     printUsage "$0"
     exit 2
@@ -136,6 +139,7 @@ typeset -A aggregators=(
     [avg]='function aggregate(acc, val) { return acc + val; }'
     [count]='function aggregate(acc, val) { return acc + (val == "" ? 0 : 1); }'
     [join]='function aggregate(acc, val) { return acc (acc == "" ? "" : joinSeparator) val; }'
+    [sum-or-join]='function aggregate(acc, val) { return (isNumberOrEmpty(val) && isNumberOrEmpty(acc) ? acc + val : acc (acc == "" ? "" : joinSeparator) val); }'
     [max]='function aggregate(acc, val) { return (acc == "" || val > acc ? val : acc); }'
     [min]='function aggregate(acc, val) { return (acc == "" || val < acc ? val : acc); }'
     [sum]='function aggregate(acc, val) { return acc + val; }'
@@ -181,6 +185,10 @@ awk \
 ${aggregators[$aggregator]}
 ${reporters[$aggregator]:-function report(acc) { return acc; \}}
 "'
+function isNumberOrEmpty(x)
+{
+    return (x == "" || x + 0 == x)
+}
 function offsetSort(i1, v1, i2, v2)
 {
     if (i1 < 0 && i2 > 0) {
