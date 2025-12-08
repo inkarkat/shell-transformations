@@ -1,32 +1,34 @@
 #!/usr/bin/env bats
 
+load fixture
+
 @test "field VAL after header is omitted because it is identical" {
-    run removeIdenticalField -F $'\t' VAL <<'EOF'
+    run -0 removeIdenticalField -F $'\t' VAL <<'EOF'
 COUNT	VAL	COMMENT
 first	foo	blah
 second	foo	blubb
 third	foo	end
 EOF
-
-    [ $status -eq 0 ]
-    [ "$output" = "COUNT	COMMENT
+    assert_output - <<'EOF'
+COUNT	COMMENT
 first	blah
 second	blubb
-third	end" ]
+third	end
+EOF
 }
 
 @test "field VAL after header is not omitted because the second line is different" {
-    run removeIdenticalField -F $'\t' VAL <<'EOF'
+    run -0 removeIdenticalField -F $'\t' VAL <<'EOF'
 COUNT	VAL	COMMENT
 first	foo	blah
 second	bar	blubb
 third	foo	end
 EOF
-
-    [ $status -eq 0 ]
-    [ "$output" = "COUNT	VAL	COMMENT
+    assert_output - <<'EOF'
+COUNT	VAL	COMMENT
 first	foo	blah
 second	bar	blubb
-third	foo	end" ]
+third	foo	end
+EOF
 }
 

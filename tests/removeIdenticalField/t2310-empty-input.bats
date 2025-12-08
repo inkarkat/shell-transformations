@@ -1,9 +1,9 @@
 #!/usr/bin/env bats
 
-@test "no input exits with 99" {
-    run removeIdenticalField -F $'\t' 1 <<'EOF'
-EOF
+load fixture
 
-    [ $status -eq 99 ]
-    [ "$output" = "" ]
+@test "no input exits with 99" {
+    run -99 removeIdenticalField -F $'\t' 1 <<'EOF'
+EOF
+    assert_output ''
 }

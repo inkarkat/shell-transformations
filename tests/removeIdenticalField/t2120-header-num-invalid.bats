@@ -1,13 +1,15 @@
 #!/usr/bin/env bats
 
+load fixture
+
 @test "non-existing field 4 prints error" {
-    run removeIdenticalField -F $'\t' 4 <<'EOF'
+    run -3 removeIdenticalField -F $'\t' 4 <<'EOF'
 first	foo	blah
 second	foo	blubb
 third	foo	end
 EOF
-
-    [ $status -eq 3 ]
-    [ "$output" = "ERROR: No field number 4 in
-first	foo	blah" ]
+    assert_output - <<'EOF'
+ERROR: No field number 4 in
+first	foo	blah
+EOF
 }

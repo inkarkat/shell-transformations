@@ -1,27 +1,29 @@
 #!/usr/bin/env bats
 
+load fixture
+
 @test "second field is not omitted because the second line does not have it" {
-    run removeIdenticalField -F $'\t' 2 <<'EOF'
+    run -0 removeIdenticalField -F $'\t' 2 <<'EOF'
 first	foo	blah
 second
 third	foo	end
 EOF
-
-    [ $status -eq 0 ]
-    [ "$output" = "first	foo	blah
+    assert_output - <<'EOF'
+first	foo	blah
 second
-third	foo	end" ]
+third	foo	end
+EOF
 }
 
 @test "second field is not omitted because it is empty in the second line" {
-    run removeIdenticalField -F $'\t' 2 <<'EOF'
+    run -0 removeIdenticalField -F $'\t' 2 <<'EOF'
 first	foo	blah
 second		blubb
 third	foo	end
 EOF
-
-    [ $status -eq 0 ]
-    [ "$output" = "first	foo	blah
+    assert_output - <<'EOF'
+first	foo	blah
 second		blubb
-third	foo	end" ]
+third	foo	end
+EOF
 }
