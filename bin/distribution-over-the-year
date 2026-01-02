@@ -90,7 +90,6 @@ finalFooter=
 typeset -a footerCapture=()
 isFooterOnlyOnChange=
 footerEvery=
-hasBucketLegend=
 typeset -a splitFieldNrs=()
 action=
 typeset -a inputDataClassificationArgs=()
@@ -114,7 +113,7 @@ do
 			shift; footerLegendText="$1"; shift;;
 	--footer-field)	shift; footerFieldNr="$1"; shift;;
 	--bucket-legend)
-			shift; hasBucketLegend=t; sparkArgs+=(--with-legend);;
+			shift; sparkArgs+=(--with-legend);;
 	--field-separator|-F)
 			inputDataClassificationArgs+=("$1" "$2"); shift; separator="${1:?}"; shift;;
 	--weekly)	inputDataClassificationArgs+=("$1"); shift; isWeekly=t;;

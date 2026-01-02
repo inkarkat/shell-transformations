@@ -99,7 +99,6 @@ hourFieldNr=4
 countFieldNr=
 defaultCount=none
 dayNum=1
-hasBucketLegend=
 slotNum=1
 splitDays=0
 typeset -a splitFieldNrs=()
@@ -123,7 +122,7 @@ do
 	--no-end-date)
 			shift; isEndDate=;;
 	--bucket-legend)
-			shift; hasBucketLegend=t; sparkArgs+=(--with-legend);;
+			shift; sparkArgs+=(--with-legend);;
 	--field-separator|-F)
 			inputDataClassificationArgs+=("$1" "$2"); shift; separator="${1:?}"; shift;;
 	--days-per-slot)
