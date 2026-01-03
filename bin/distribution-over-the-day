@@ -4,7 +4,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf "Usage: echo -e '11:01\\\\n11:30\\\\n12:00\\\\n...'| [DISTRIBUTIONOVERTHEDAY_EMPTY_CELL='-'] [DISTRIBUTIONOVERTHEDAY_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEDAY_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer|--final-footer-only|--footer-only-on-change|--footer-every N] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [--bucket-legend] [-F|--field-separator FS] [--hour-field N] [--minute-field M] [--first-hour HH] [--last-hour HH] [--slots-per-hour N] [--count-field C [--default-count C|""]] [--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar|...] [SPARK-ARGS ...] [-?|-h|--help]'
+    printf "Usage: echo -e '11:01\\\\n11:30\\\\n12:00\\\\n...'| [DISTRIBUTIONOVERTHEDAY_EMPTY_CELL='-'] [DISTRIBUTIONOVERTHEDAY_BORDERS='/ \ L J'] [DISTRIBUTIONOVERTHEDAY_LEGEND_LENGTH=N] %q %s\\n" "$(basename "$1")" '[--no-footer|--final-footer-only|--footer-only-on-change|--footer-every N] [--graph-legend TEXT] [--graph-field N] [--footer-legend TEXT] [--footer-field N] [--bucket-legend [--legend-unit UNIT]] [-F|--field-separator FS] [--hour-field N] [--minute-field M] [--first-hour HH] [--last-hour HH] [--slots-per-hour N] [--count-field C [--default-count C|""]] [--split-graph-field N [--split-graph-field ...]] [--as colorbox-calendar|green-[large-]calendar|...] [SPARK-ARGS ...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -48,6 +48,7 @@ HELPDESCRIPTION
 			this will be put after the graph legend instead.
     --bucket-legend	Append a legend showing the value ranges for each
 			sparkline character.
+    --legend-unit UNIT	Append UNIT to the legend.
     --field-separator|-F FS
 			Use FS for splitting the data into columns (instead of
 			the default whitespace + [:_/-]).
@@ -118,6 +119,7 @@ do
 	--footer-field)	shift; footerFieldNr="$1"; shift;;
 	--bucket-legend)
 			shift; sparkArgs+=(--with-legend);;
+	--legend-unit)	sparkArgs+=("$1" "${2?}"); shift; shift;;
 	--field-separator|-F)
 			inputDataClassificationArgs+=("$1" "$2"); shift; separator="${1:?}"; shift;;
 	--hour-field)   inputDataClassificationArgs+=("$1" "$2"); shift; hourFieldNr="${1:?}"; shift;;
