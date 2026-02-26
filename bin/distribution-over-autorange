@@ -143,19 +143,19 @@ done
 
 isSingleRange()
 {
-    { IFS=$'\n' read -r firstRange; IFS=$'\n' read -r lastRange; } < <(printf '%s\n' "$firstDate" "$lastDate" | field "${distributionFieldSeparatorArgs[@]}" "$@")
+    { IFS=$'\n' read -r firstRange; IFS=$'\n' read -r lastRange; } < <(printf '%s\n' "$firstDate" "$lastDate" | field "${distributionFieldSeparatorArgs[@]}" -s ' ' "$@")
     [ "$firstRange" = "$lastRange" ]
 }
 
 getMinMaxLegendArgs()
 {
-    { IFS=$'\n' read -r firstRange; IFS=$'\n' read -r lastRange; } < <(printf '%s\n' "$firstDate" "$lastDate" | field "${distributionFieldSeparatorArgs[@]}" "$@" | sort)
+    { IFS=$'\n' read -r firstRange; IFS=$'\n' read -r lastRange; } < <(printf '%s\n' "$firstDate" "$lastDate" | field "${distributionFieldSeparatorArgs[@]}" -s ' ' "$@" | sort)
     printf '%s\n' --graph-legend "$firstRange" --footer-legend "$lastRange"
 }
 
 hasHours()
 {
-    { IFS=$'\n' read -r firstHours; IFS=$'\n' read -r lastHours; } < <(printf '%s\n' "${dates[0]}" "${dates[-1]}" | field "${distributionFieldSeparatorArgs[@]}" 4 '' 5)
+    { IFS=$'\n' read -r firstHours; IFS=$'\n' read -r lastHours; } < <(printf '%s\n' "${dates[0]}" "${dates[-1]}" | field "${distributionFieldSeparatorArgs[@]}" -s ' ' 4 '' 5)
     [ -n "$firstHours" -o -n "$lastHours" ]
 }
 
