@@ -7,7 +7,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '--avg|--count|--join SEP|--sum-or-join SEP|--max|--min|--sum|--unique-counts|--total-and-unique-counts [--has-header] -g|--group-by [-]N|HEADER-NAME [--result-first] [--sort-by [+-]group|[+-]result] [-F|--field-separator FIELD-SEPARATOR] [-s|--output-separator OUTPUT-SEPARATOR] [[-]N|HEADER-NAME ...]'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '--avg|--count|--join SEP|--sum-or-join SEP|--max|--min|--sum|--unique-counts|--total-and-unique-counts [--has-header] -g|--group-by [-]N|HEADER-NAME [--result-first] [--sort-by [+-]group|[+-]result] [-F|--field-separator FIELD-SEPARATOR] [-s|--output-separator OUTPUT-SEPARATOR] [-I|--ignore-missing-fields] [[-]N|HEADER-NAME ...]'
     echo
     printf 'Usage: %q %s\n' "$(basename "$1")" "... -i|--input FILE [-i ...]|--input-files FILE [...] ${AGGREGATEFIELD_INPUTFILES_END} [-?|-h|--help]"
 }
@@ -54,7 +54,10 @@ HELPDESCRIPTION
     --sort-by [+-]group|[+-]result
 			Sort the output by group or result (left to right),
 			ascending (+) or descending (-).
-    --input|-i FILE 	Read from FILE(s) instead of standard input.
+    --ignore-missing-fields|-I
+			Skip missing fields and just print a warning to stderr
+			instead of aborting processing altogether.
+    --input|-i FILE	Read from FILE(s) instead of standard input.
     --input-files FILE [...] ${AGGREGATEFIELD_INPUTFILES_END}
 			Read from the following FILE(s) i.e. all following
 			arguments until an argument consisting of '${AGGREGATEFIELD_INPUTFILES_END}'
@@ -73,6 +76,7 @@ isResultFirst=
 sorter=
 aggregator=
 joinSeparator=
+isIgnoreMissingFields=
 while [ $# -ne 0 ]
 do
     case "$1" in
@@ -94,6 +98,8 @@ do
 			esac
 			shift
 			;;
+	--ignore-missing-fields|-I)
+			shift; isIgnoreMissingFields=t;;
 	--input|-i)	shift; inputFilespecs+=("${1:?}"); shift;;
 	--input-files)	shift
 			while [ $# -gt 0 -a "$1" != "$AGGREGATEFIELD_INPUTFILES_END" ]
@@ -178,6 +184,7 @@ awk \
     -v "isResultFirst=$isResultFirst" \
     -v "sorter=$sorter" \
     -v "joinSeparator=${joinSeparator//\\/\\\\}" \
+    -v "isIgnoreMissingFields=$isIgnoreMissingFields" \
 "${valueKeyers[$aggregator]:-function valueKeyer(val) { return ""; \}}
 ${aggregators[$aggregator]}
 ${reporters[$aggregator]:-function report(acc) { return acc; \}}
@@ -280,8 +287,8 @@ NR == 1 {
     if (groupByFieldSpecifier ~ /^-?[0-9]+$/) {
 	groupByFieldNr = groupByFieldSpecifier
 	if (getFieldNr(groupByFieldNr) <= 0 || getFieldNr(groupByFieldNr) > NF) {
-	    printf "ERROR: No field number %d in\n%s\n", groupByFieldNr, $0 > "/dev/stderr"
-	    exit 3
+	    printf "%s: No field number %d in\n%s\n", (isIgnoreMissingFields ? "Warning" : "ERROR"), groupByFieldNr, $0 > "/dev/stderr"
+	    if (isIgnoreMissingFields) { next } else { exit 3 }
 	}
     } else if (groupByFieldSpecifier != "") {
 	if (! hasHeader) {
@@ -296,8 +303,8 @@ NR == 1 {
 	    }
 	}
 	if (! isFoundGroupByField) {
-	    printf "ERROR: Could not locate field named %s in\n%s\n", groupByFieldSpecifier, $0 > "/dev/stderr"
-	    exit 3
+	    printf "%s: Could not locate field named %s in\n%s\n", (isIgnoreMissingFields ? "Warning" : "ERROR"), groupByFieldSpecifier, $0 > "/dev/stderr"
+	    if (isIgnoreMissingFields) { next } else { exit 3 }
 	}
     }
 
@@ -308,8 +315,8 @@ NR == 1 {
 	if (specifier ~ /^-?[0-9]+$/) {
 	    aggregateFields[specifier] = ""
 	    if (getFieldNr(specifier) <= 0 || getFieldNr(specifier) > NF) {
-		printf "ERROR: No field number %d in\n%s\n", specifier, $0 > "/dev/stderr"
-		exit 3
+		printf "%s: No field number %d in\n%s\n", (isIgnoreMissingFields ? "Warning" : "ERROR"), specifier, $0 > "/dev/stderr"
+		if (isIgnoreMissingFields) { continue } else { exit 3 }
 	    }
 	} else {
 	    if (! hasHeader) {
@@ -325,8 +332,8 @@ NR == 1 {
 		}
 	    }
 	    if (! isFoundAggregateField) {
-		printf "ERROR: Could not locate field named %s in: %s\n", specifier, $0 > "/dev/stderr"
-		exit 3
+		printf "%s: Could not locate field named %s in: %s\n", (isIgnoreMissingFields ? "Warning" : "ERROR"), specifier, $0 > "/dev/stderr"
+		if (isIgnoreMissingFields) { continue } else { exit 3 }
 	    }
 	}
     }
