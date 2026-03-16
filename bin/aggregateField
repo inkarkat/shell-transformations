@@ -7,7 +7,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '--avg|--count|--join SEP|--sum-or-join SEP|--max|--min|--sum|--unique-counts|--total-and-unique-counts [--has-header] -g|--group-by [-]N|HEADER-NAME [--result-first] [--sort-by [+-]group|[+-]result] [-F|--field-separator FIELD-SEPARATOR] [-s|--output-separator OUTPUT-SEPARATOR] [-I|--ignore-missing-fields] [[-]N|HEADER-NAME ...]'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '--avg|--count|--join SEP|--sum-or-join SEP|--max|--min|--sum|--unique-counts|--total-and-unique-counts [--has-header] -g|--group-by [-]N|HEADER-NAME [--result-first] [--sort-by [+-]group|[+-]result] [-F|--field-separator FS] [-s|--output-separator OS] [-I|--ignore-missing-fields] [[-]N|HEADER-NAME ...]'
     echo
     printf 'Usage: %q %s\n' "$(basename "$1")" "... -i|--input FILE [-i ...]|--input-files FILE [...] ${AGGREGATEFIELD_INPUTFILES_END} [-?|-h|--help]"
 }
@@ -270,7 +270,7 @@ BEGIN {
     split("", aggregateFields)
 }
 NR == 1 {
-    # Use passed OUTPUT-SEPARATOR, fall back to FS unless it is a regular expression.
+    # Use passed OS, fall back to FS unless it is a regular expression.
     if (outputSeparator != "") {
 	OFS = outputSeparator
     } else {
@@ -280,7 +280,7 @@ NR == 1 {
 	} else if (FS == " ") {
 	    OFS = ((substr($0, 1, length(firstTwoFields)) == $1 "\t" $2) ? "\t" : " ")
 	} else {
-	    print "Note: Using space as default output field separator; change via -s|--output-separator OUTPUT-SEPARATOR or pass a non-regular expression -F|--field-separator FIELD-SEPARATOR." > "/dev/stderr"
+	    print "Note: Using space as default output field separator; change via -s|--output-separator OS or pass a non-regular expression -F|--field-separator FS." > "/dev/stderr"
 	}
     }
 
