@@ -8,9 +8,9 @@ load fixture
     assert_line -n -1 -e "^Usage:"
 }
 
-@test "regular expression field separator prints an error message" {
-    run -2 removeIdenticalField -F ' +' 1 <<'EOF'
+@test "regular expression field separator prints note" {
+    run -0 --separate-stderr removeIdenticalField -F ' +' 1 <<'EOF'
 foo bar
 EOF
-    assert_output 'ERROR: The field separator has to be a literal string; it cannot be a regular expression.'
+    output="$stderr" assert_output 'Note: Using space as default output field separator; change via -s|--output-separator OS or pass a non-regular expression -F|--field-separator FS.'
 }
