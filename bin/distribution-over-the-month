@@ -209,7 +209,8 @@ BEGIN {
 	    printSection()
 
 	    delete watchedFields
-	    for (sf in splitFieldNrs) {
+	    for (i in splitFieldNrs) {
+		sf = splitFieldNrs[i]
 		if ($sf != "") watchedFields[sf] = $sf
 	    }
 	    break
