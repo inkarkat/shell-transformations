@@ -1,6 +1,6 @@
 #!/bin/bash
 
-: ${REMOVEIDENTICALFIELD_INPUTFILES_END=;}
+: ${REMOVEIDENTICALFIELD_FILES_END=;}
 
 printUsage()
 {
@@ -10,12 +10,12 @@ values are identical. Exits with 99 if no rows were encountered.
 HELPTEXT
     echo
     printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [--keep-single] [-F|--field-separator FS] [-s|--output-separator OS] N|HEADER-NAME'
-    printf 'Usage: %q %s\n' "$(basename "$1")" "... -i|--input FILE [-i ...]|--input-files FILE [...] ${REMOVEIDENTICALFIELD_INPUTFILES_END} N|HEADER-NAME [-?|-h|--help]"
+    printf 'Usage: %q %s\n' "$(basename "$1")" "... -f|--file FILE [-i ...]|--files FILE [...] ${REMOVEIDENTICALFIELD_FILES_END} N|HEADER-NAME [-?|-h|--help]"
 }
 
 typeset -a fsArgs
 outputSeparator=
-typeset -a inputFilespecs=()
+typeset -a filespecs=()
 hasHeader=
 isKeepSingle=
 while [ $# -ne 0 ]
@@ -24,20 +24,22 @@ do
 	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
 	--has-header)	shift; hasHeader=t;;
 	--keep-single)	shift; isKeepSingle=t;;
-	--input|-i)	shift; inputFilespecs+=("${1:?}"); shift;;
-	--input-files)	shift
-			while [ $# -gt 0 -a "$1" != "$REMOVEIDENTICALFIELD_INPUTFILES_END" ]
+	--file|-f)	shift; filespecs+=("${1:?}"); shift;;
+	--file=*)	filespecs+=("${1#--file=}"); shift;;
+	-f*)		filespecs+=("${1#-f}"); shift;;
+	--files)	shift
+			while [ $# -gt 0 -a "$1" != "$REMOVEIDENTICALFIELD_FILES_END" ]
 			do
-			    inputFilespecs+=("$1")
+			    filespecs+=("$1")
 			    shift
 			done
 			if [ $# -eq 0 ]; then
-			    echo "ERROR: --input-files must be concluded with '${REMOVEIDENTICALFIELD_INPUTFILES_END}'"; echo; printUsage "$0"
+			    echo "ERROR: --files must be concluded with '${REMOVEIDENTICALFIELD_FILES_END}'"; echo; printUsage "$0"
 			    exit 2
 			fi >&2
 			shift
-			if [ ${#inputFilespecs[@]} -eq 0 ]; then
-			    echo 'ERROR: --input-files must be followed by at least one FILE.'; echo; printUsage "$0"
+			if [ ${#filespecs[@]} -eq 0 ]; then
+			    echo 'ERROR: --files must be followed by at least one FILE.'; echo; printUsage "$0"
 			    exit 2
 			fi >&2
 			;;
@@ -171,4 +173,4 @@ END {
 	printReadLines(0)
     }
 }
-' "${inputFilespecs[@]}"
+' "${filespecs[@]}"

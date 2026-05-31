@@ -1,7 +1,7 @@
 #!/bin/bash
 shopt -qs extglob
 
-: ${AGGREGATEFIELD_INPUTFILES_END=;}
+: ${AGGREGATEFIELD_FILES_END=;}
 
 printShortUsage()
 {
@@ -9,7 +9,7 @@ printShortUsage()
     # skim the long one.
     printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '--avg|--count|--join SEP|--sum-or-join SEP|--max|--min|--sum|--unique-counts|--total-and-unique-counts [--has-header] -g|--group-by [-]N|HEADER-NAME [--result-first] [--sort-by [+-]group|[+-]result] [-F|--field-separator FS] [-s|--output-separator OS] [-I|--ignore-missing-fields] [[-]N|HEADER-NAME ...]'
     echo
-    printf 'Usage: %q %s\n' "$(basename "$1")" "... -i|--input FILE [-i ...]|--input-files FILE [...] ${AGGREGATEFIELD_INPUTFILES_END} [-?|-h|--help]"
+    printf 'Usage: %q %s\n' "$(basename "$1")" "... -f|--file FILE [-i ...]|--files FILE [...] ${AGGREGATEFIELD_FILES_END} [-?|-h|--help]"
 }
 printUsage()
 {
@@ -57,10 +57,10 @@ HELPDESCRIPTION
     --ignore-missing-fields|-I
 			Skip missing fields and just print a warning to stderr
 			instead of aborting processing altogether.
-    --input|-i FILE	Read from FILE(s) instead of standard input.
-    --input-files FILE [...] ${AGGREGATEFIELD_INPUTFILES_END}
+    --file|-f FILE	Read from FILE(s) instead of standard input.
+    --files FILE [...] ${AGGREGATEFIELD_FILES_END}
 			Read from the following FILE(s) i.e. all following
-			arguments until an argument consisting of '${AGGREGATEFIELD_INPUTFILES_END}'
+			arguments until an argument consisting of '${AGGREGATEFIELD_FILES_END}'
 			is encountered instead of standard input.
 EXIT STATUS:
     99	If no numbers were encountered.
@@ -68,7 +68,7 @@ HELPTEXT
 }
 
 typeset -a fsArgs
-typeset -a inputFilespecs=()
+typeset -a filespecs=()
 outputSeparator=
 hasHeader=
 groupBy=
@@ -100,20 +100,22 @@ do
 			;;
 	--ignore-missing-fields|-I)
 			shift; isIgnoreMissingFields=t;;
-	--input|-i)	shift; inputFilespecs+=("${1:?}"); shift;;
-	--input-files)	shift
-			while [ $# -gt 0 -a "$1" != "$AGGREGATEFIELD_INPUTFILES_END" ]
+	--file|-f)	shift; filespecs+=("${1:?}"); shift;;
+	--file=*)	filespecs+=("${1#--file=}"); shift;;
+	-f*)		filespecs+=("${1#-f}"); shift;;
+	--files)	shift
+			while [ $# -gt 0 -a "$1" != "$AGGREGATEFIELD_FILES_END" ]
 			do
-			    inputFilespecs+=("$1")
+			    filespecs+=("$1")
 			    shift
 			done
 			if [ $# -eq 0 ]; then
-			    echo "ERROR: --input-files must be concluded with '${AGGREGATEFIELD_INPUTFILES_END}'"; echo; printUsage "$0"
+			    echo "ERROR: --files must be concluded with '${AGGREGATEFIELD_FILES_END}'"; echo; printUsage "$0"
 			    exit 2
 			fi >&2
 			shift
-			if [ ${#inputFilespecs[@]} -eq 0 ]; then
-			    echo 'ERROR: --input-files must be followed by at least one FILE.'; echo; printUsage "$0"
+			if [ ${#filespecs[@]} -eq 0 ]; then
+			    echo 'ERROR: --files must be followed by at least one FILE.'; echo; printUsage "$0"
 			    exit 2
 			fi >&2
 			;;
@@ -387,4 +389,4 @@ END {
 	}
     }
 }
-' "${inputFilespecs[@]}"
+' "${filespecs[@]}"

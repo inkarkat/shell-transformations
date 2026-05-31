@@ -1,7 +1,7 @@
 #!/bin/bash
 shopt -qs extglob
 
-: ${COUNTFIELDTOPERCENTAGE_INPUTFILES_END=;}
+: ${COUNTFIELDTOPERCENTAGE_FILES_END=;}
 
 printUsage()
 {
@@ -12,31 +12,33 @@ that field. Exits with 99 if no rows were encountered.
 HELPTEXT
     echo
     printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-F|--field-separator FS] [-]N|HEADER-NAME'
-    printf 'Usage: %q %s\n' "$(basename "$1")" "... -i|--input FILE [-i ...]|--input-files FILE [...] ${COUNTFIELDTOPERCENTAGE_INPUTFILES_END} [-]N|HEADER-NAME [-?|-h|--help]"
+    printf 'Usage: %q %s\n' "$(basename "$1")" "... -f|--file FILE [-i ...]|--files FILE [...] ${COUNTFIELDTOPERCENTAGE_FILES_END} [-]N|HEADER-NAME [-?|-h|--help]"
 }
 
 typeset -a fsArgs
-typeset -a inputFilespecs=()
+typeset -a filespecs=()
 hasHeader=
 while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
 	--has-header)	shift; hasHeader=t;;
-	--input|-i)	shift; inputFilespecs+=("${1:?}"); shift;;
-	--input-files)	shift
-			while [ $# -gt 0 -a "$1" != "$COUNTFIELDTOPERCENTAGE_INPUTFILES_END" ]
+	--file|-f)	shift; filespecs+=("${1:?}"); shift;;
+	--file=*)	filespecs+=("${1#--file=}"); shift;;
+	-f*)		filespecs+=("${1#-f}"); shift;;
+	--files)	shift
+			while [ $# -gt 0 -a "$1" != "$COUNTFIELDTOPERCENTAGE_FILES_END" ]
 			do
-			    inputFilespecs+=("$1")
+			    filespecs+=("$1")
 			    shift
 			done
 			if [ $# -eq 0 ]; then
-			    echo "ERROR: --input-files must be concluded with '${COUNTFIELDTOPERCENTAGE_INPUTFILES_END}'"; echo; printUsage "$0"
+			    echo "ERROR: --files must be concluded with '${COUNTFIELDTOPERCENTAGE_FILES_END}'"; echo; printUsage "$0"
 			    exit 2
 			fi >&2
 			shift
-			if [ ${#inputFilespecs[@]} -eq 0 ]; then
-			    echo 'ERROR: --input-files must be followed by at least one FILE.'; echo; printUsage "$0"
+			if [ ${#filespecs[@]} -eq 0 ]; then
+			    echo 'ERROR: --files must be followed by at least one FILE.'; echo; printUsage "$0"
 			    exit 2
 			fi >&2
 			;;
@@ -126,4 +128,4 @@ END {
 	}
     }
 }
-' "${inputFilespecs[@]}"
+' "${filespecs[@]}"
