@@ -113,3 +113,28 @@ EOF
 1 important one
 EOF
 }
+
+@test "truncation of monotonically decreasing numbers from 10 truncates at 5 but explicitly includes important lines without separator" {
+    TRUNCATELONGTAIL_INCLUDE_SEPARATOR='' run -0 truncateLongTail --include important 1 <<'EOF'
+10 ten
+9 important nine
+8 eight
+7 seven
+6 six
+5 five
+4 four
+3 important three
+2 two
+1 important one
+EOF
+    assert_output - <<'EOF'
+10 ten
+9 important nine
+8 eight
+7 seven
+6 six
+5 five
+3 important three
+1 important one
+EOF
+}

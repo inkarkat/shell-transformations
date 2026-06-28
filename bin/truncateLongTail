@@ -1,7 +1,7 @@
 #!/bin/bash
 shopt -qs extglob
 
-: ${TRUNCATELONGTAIL_INCLUDE_SEPARATOR:=[...]}
+: ${TRUNCATELONGTAIL_INCLUDE_SEPARATOR=[...]}
 : ${TRUNCATELONGTAIL_FILES_END=;}
 
 printShortUsage()
@@ -9,7 +9,7 @@ printShortUsage()
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
     printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-F|--field-separator FS] [-m|--include PATTERN [-m ...]] [-]N|HEADER-NAME'
-    printf 'Usage: %q %s\n' "$(basename "$1")" "... -f|--file FILE [-i ...]|--files FILE [...] ${TRUNCATELONGTAIL_FILES_END} [-]N|HEADER-NAME [-?|-h|--help]"
+    printf 'Usage: [TRUNCATELONGTAIL_INCLUDE_SEPARATOR=TEXT] %q %s\n' "$(basename "$1")" "... -f|--file FILE [-i ...]|--files FILE [...] ${TRUNCATELONGTAIL_FILES_END} [-]N|HEADER-NAME [-?|-h|--help]"
 }
 printUsage()
 {
