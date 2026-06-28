@@ -3,13 +3,14 @@ shopt -qs extglob
 
 : ${TRUNCATELONGTAIL_INCLUDE_SEPARATOR=[...]}
 : ${TRUNCATELONGTAIL_FILES_END=;}
+: ${TRUNCATELONGTAIL_TRIGGER_LNUM=6}
 
 printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
     printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--has-header] [-F|--field-separator FS] [-m|--include PATTERN [-m ...]] [-]N|HEADER-NAME'
-    printf 'Usage: [TRUNCATELONGTAIL_INCLUDE_SEPARATOR=TEXT] %q %s\n' "$(basename "$1")" "... -f|--file FILE [-i ...]|--files FILE [...] ${TRUNCATELONGTAIL_FILES_END} [-]N|HEADER-NAME [-?|-h|--help]"
+    printf 'Usage: [TRUNCATELONGTAIL_INCLUDE_SEPARATOR=TEXT] [TRUNCATELONGTAIL_TRIGGER_LNUM=N] %q %s\n' "$(basename "$1")" "... -f|--file FILE [-i ...]|--files FILE [...] ${TRUNCATELONGTAIL_FILES_END} [-]N|HEADER-NAME [-?|-h|--help]"
 }
 printUsage()
 {
@@ -25,7 +26,8 @@ printLongUsage()
     cat <<HELPDESCRIPTION
 Observe the decreasing numbers in field N (-N counted from behind) / field with
 HEADER-NAME (implies --has-header) and suppress any output once a calculated
-threshold value is reached.
+threshold value is reached${TRUNCATELONGTAIL_TRIGGER_LNUM:+, but keep the full output if it is less than
+$TRUNCATELONGTAIL_TRIGGER_LNUM lines}.
 HELPDESCRIPTION
     echo
     printShortUsage "$1"
@@ -90,6 +92,7 @@ fi
 
 awk \
     "${fsArgs[@]}" \
+    -v "triggerLnum=$TRUNCATELONGTAIL_TRIGGER_LNUM" \
     -v "hasHeader=$hasHeader" \
     -v "valueFieldSpecifier=${1:?}" \
     -v "includePattern=${includePattern//\\/\\\\}" \
@@ -104,6 +107,20 @@ function calculateCutOffValue()
     fieldNr = getFieldNr()
     cutOffValue = 2 * log($fieldNr) # Empirical formula.
     if (index("," ENVIRON["DEBUG"] ",", ",truncateLongTail,")) printf("+ truncateLongTail: cut-off value is %d\n", cutOffValue) > "/dev/stderr"
+}
+function submitTruncation(line)
+{
+    if (triggerLnum != "" && NR <= triggerLnum) {
+	truncations = truncations line ORS
+    } else {
+	print line
+    }
+}
+function submitLine(line)
+{
+    if (triggerLnum != "" && NR <= triggerLnum) {
+	lines = lines line ORS
+    }
 }
 NR == 1 {
     if (valueFieldSpecifier ~ /^-?[0-9]+$/) {
@@ -144,17 +161,31 @@ NR == 2 && hasHeader {
 	isCutOff = 1
 	if (includePattern != "" && $0 ~ includePattern) {
 	    if (lastIncludedLnum != NR - 1 && includeSeparator != "") {
-		print includeSeparator
+		submitTruncation(includeSeparator)
 	    }
-	    print
+	    submitTruncation($0)
 	    lastIncludedLnum = NR
+	}
+	submitLine($0)
+
+	# On the trigger line, print any recorded truncations.
+	if (triggerLnum != "" && NR == triggerLnum && truncations != "") {
+	    printf("%s", truncations)
+	    truncations = ""
+	    lines = ""	# Clear recorded input lines; we had truncations.
 	}
     } else if (isCutOff) {
 	printf "Warning: Value %d in line %d exceeds threshold %d again; the values in field %s are not decreasing.\n", $fieldNr, NR, cutOffValue, valueFieldSpecifier > "/dev/stderr"
+	submitLine($0)
     } else {
 	print
 	lastIncludedLnum = NR
     }
 }
-
+END {
+	if (triggerLnum != "" && NR < triggerLnum && lines != "") {
+	    # There is less input than the trigger line; print any recorded input lines.
+	    printf("%s", lines)
+	}
+}
 ' "${filespecs[@]}"
