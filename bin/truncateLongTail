@@ -103,6 +103,7 @@ function calculateCutOffValue()
 {
     fieldNr = getFieldNr()
     cutOffValue = 2 * log($fieldNr) # Empirical formula.
+    if (index("," ENVIRON["DEBUG"] ",", ",truncateLongTail,")) printf("+ truncateLongTail: cut-off value is %d\n", cutOffValue) > "/dev/stderr"
 }
 NR == 1 {
     if (valueFieldSpecifier ~ /^-?[0-9]+$/) {
